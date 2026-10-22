@@ -266,7 +266,39 @@ wifi 第一次开机不依赖它（stock vendor 提供 HAL）。等能开机了�
 | `external/avb/test/data/testkey_rsa2048.pem` | AOSP | ✅ 在 `external/avb` |
 | `PRODUCT_PACKAGES` 里 5 个模块 | AOSP | ✅ 全部为标准模块 |
 
-### 7.4 若编译报 `hardware/qcom-caf/common/BoardConfigQcom.mk` 缺失
+### 7.4 编译目标名（这条会让你第一次编译就失败）
+
+**不能**写：
+```
+--make-mode systemimage systemextimage productimage
+```
+（NX789J 的 README 就是这么写的，但那是错的）
+
+查 PixelOS `build/make/core/Makefile` 实际定义：
+
+| 目标 | 是否存在 | 说明 |
+|---|---|---|
+| `systemimage` | ✅ L3932 | `systemimage: $(INSTALLED_SYSTEMIMAGE_TARGET)`，设备构建可用 |
+| `systemextimage` | ❌ 仅 L7905 | `systemextimage: $(INSTALLED_QEMU_SYSTEM_EXTIMAGE)` —— **只在 QEMU 分支** |
+| `productimage` | ❌ 仅 L7896 | `productimage: $(INSTALLED_QEMU_PRODUCTIMAGE)` —— **只在 QEMU 分支** |
+| `systemextimage-nodeps` | ✅ L4411 | 存在，但**不依赖 `INTERNAL_SYSTEM_EXTIMAGE_FILES`** |
+| `productimage-nodeps` | ✅ L4343 | 同上 |
+
+`nodeps` 变体不会先把模块装进 `TARGET_OUT_*` 就直接跑 `build_image.py`，
+首次编译会产出**空镜像**。
+
+**正确做法：用产物文件路径当目标。**
+```bash
+build/soong/soong_ui.bash --make-mode \
+    systemimage \
+    "$OUT/system_ext.img" \
+    "$OUT/product.img" \
+    -j$(nproc)
+```
+
+`03-build.sh` 已按此实现，并带"绝对路径被拒 → 退相对路径"的自动重试。
+
+### 7.5 若编译报 `hardware/qcom-caf/common/BoardConfigQcom.mk` 缺失
 
 `vendor/lineage/config/BoardConfigLineage.mk` 里有一段：
 ```make

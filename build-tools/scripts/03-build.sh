@@ -68,14 +68,55 @@ else
 fi
 
 # ── 编译（前台，日志 tee 到文件）────────────────────────────────────────────
-log "开始编译，日志 ${DATA}/build.log（也实时输出到屏幕）"
+# ── 编译目标：必须用镜像文件路径，不能用 systemextimage/productimage ─────────
+#
+# 这两个名字在设备构建里**不存在**，只在 QEMU 分支定义
+# （PixelOS/LineageOS 的 build/make/core/Makefile：
+#    L7905  systemextimage: $(INSTALLED_QEMU_SYSTEM_EXTIMAGE)
+#    L7896  productimage:   $(INSTALLED_QEMU_PRODUCTIMAGE)
+#  ）
+# 直接写 --make-mode systemextimage productimage 会报
+#   "No rule to make target 'systemextimage'"
+#
+# 设备构建里只存在：
+#   systemimage                                     ← 有完整依赖，可用
+#   systemextimage-nodeps senod                     ← 只有 nodeps 变体
+#   productimage-nodeps pnod                        ← 只有 nodeps 变体
+#
+# 但 nodeps 变体**不依赖 INTERNAL_*IMAGE_FILES**，也就是不会先把模块装进
+# TARGET_OUT_*，直接跑 build_image.py —— 首次编译会产出空镜像或旧镜像。
+#
+# 所以正确做法是拿产物的**文件路径**当目标：
+#   $(INSTALLED_SYSTEM_EXTIMAGE_TARGET) = $(PRODUCT_OUT)/system_ext.img（含完整依赖）
+#   $(INSTALLED_PRODUCTIMAGE_TARGET)    = $(PRODUCT_OUT)/product.img  （含完整依赖）
+#
+OUT_DIR="${TREE}/out/target/product/NX737J"
+log "编译目标："
+log "  systemimage"
+log "  ${OUT_DIR}/system_ext.img"
+log "  ${OUT_DIR}/product.img"
+log "日志 ${DATA}/build.log（同时输出到屏幕）"
 
 set +e
 build/soong/soong_ui.bash --make-mode \
-    systemimage systemextimage productimage \
+    systemimage \
+    "${OUT_DIR}/system_ext.img" \
+    "${OUT_DIR}/product.img" \
     -j"${JOBS}" 2>&1 | tee "${DATA}/build.log"
 RC=${PIPESTATUS[0]}
 set -e
+
+# 绝对路径不被接受时，退回相对路径再试一次
+if (( RC != 0 )) && grep -qE "No rule to make target.*${OUT_DIR}" "${DATA}/build.log"; then
+    OUT_REL="${OUT_DIR#${TREE}/}"
+    log "绝对路径目标不被接受，改用相对路径重试：${OUT_REL}"
+    set +e
+    build/soong/soong_ui.bash --make-mode \
+        systemimage "${OUT_REL}/system_ext.img" "${OUT_REL}/product.img" \
+        -j"${JOBS}" 2>&1 | tee -a "${DATA}/build.log"
+    RC=${PIPESTATUS[0]}
+    set -e
+fi
 
 echo "BUILD_EXIT=${RC}" >> "${DATA}/build.log"
 
