@@ -91,17 +91,41 @@ fi
 #   $(INSTALLED_PRODUCTIMAGE_TARGET)    = $(PRODUCT_OUT)/product.img  （含完整依赖）
 #
 OUT_DIR="${TREE}/out/target/product/NX737J"
+
+# ── 要不要编 product？────────────────────────────────────────────────────────
+# KEEP_STOCK_PRODUCT=1（默认）：不编 product，刷机时保留原厂 product 分区。
+#
+#   理由：努比亚的相机算法组件全在 product 里，扫 super.img 实测发现
+#       com.zte.camera.SpecialTypesProvider
+#       com.zte.bokeh                       ← 人像虚化
+#       com.zte.imagesegmentation           ← 图像分割
+#       com.zte.videosegmentation           ← 视频分割
+#       cn.nubia.camera.tools
+#       cn.nubia.touping                    ← 投屏
+#       cn.nubia.identity / provider.deviceid
+#   换成 AOSP 的 product（几乎空镜像）会把这些全丢掉，
+#   Z70S 的相机高级功能直接残废。
+#
+#   AOSP 侧几乎不往 product 放东西，替换它收益接近零。
+#
+# KEEP_STOCK_PRODUCT=0：按 NX789J 的做法编三个镜像（想要完全净化时用）。
+#
+KEEP_PRODUCT="${KEEP_STOCK_PRODUCT:-1}"
+
+if [[ "${KEEP_PRODUCT}" == "1" ]]; then
+    TARGETS=( systemimage "${OUT_DIR}/system_ext.img" )
+    log "模式：保留原厂 product（只编 system + system_ext）"
+else
+    TARGETS=( systemimage "${OUT_DIR}/system_ext.img" "${OUT_DIR}/product.img" )
+    log "模式：编三个镜像（product 也替换）"
+fi
 log "编译目标："
-log "  systemimage"
-log "  ${OUT_DIR}/system_ext.img"
-log "  ${OUT_DIR}/product.img"
+for t in "${TARGETS[@]}"; do log "  ${t}"; done
 log "日志 ${DATA}/build.log（同时输出到屏幕）"
 
 set +e
 build/soong/soong_ui.bash --make-mode \
-    systemimage \
-    "${OUT_DIR}/system_ext.img" \
-    "${OUT_DIR}/product.img" \
+    "${TARGETS[@]}" \
     -j"${JOBS}" 2>&1 | tee "${DATA}/build.log"
 RC=${PIPESTATUS[0]}
 set -e
@@ -110,9 +134,16 @@ set -e
 if (( RC != 0 )) && grep -qE "No rule to make target.*${OUT_DIR}" "${DATA}/build.log"; then
     OUT_REL="${OUT_DIR#${TREE}/}"
     log "绝对路径目标不被接受，改用相对路径重试：${OUT_REL}"
+    REL_TARGETS=()
+    for t in "${TARGETS[@]}"; do
+        case "$t" in
+            /*) REL_TARGETS+=( "${t#${TREE}/}" ) ;;
+            *)  REL_TARGETS+=( "$t" ) ;;
+        esac
+    done
     set +e
     build/soong/soong_ui.bash --make-mode \
-        systemimage "${OUT_REL}/system_ext.img" "${OUT_REL}/product.img" \
+        "${REL_TARGETS[@]}" \
         -j"${JOBS}" 2>&1 | tee -a "${DATA}/build.log"
     RC=${PIPESTATUS[0]}
     set -e
@@ -142,6 +173,8 @@ if (( RC != 0 )); then
     die "编译失败 (exit ${RC})"
 fi
 
-OUT="${TREE}/out/target/product/NX737J"
 log "编译成功。产物："
-ls -la "${OUT}"/*.img 2>/dev/null | grep -E 'system|product' || true
+ls -la "${OUT_DIR}"/*.img 2>/dev/null | grep -E 'system|product' || true
+if [[ "${KEEP_PRODUCT}" == "1" ]]; then
+    log "注意：本次没编 product.img，刷机时保留原厂 product 分区"
+fi

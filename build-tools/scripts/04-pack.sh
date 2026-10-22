@@ -15,8 +15,17 @@ log() { echo -e "\n\033[1;32m[pack]\033[0m $*"; }
 
 [[ -d "${OUT}" ]] || { echo "找不到 ${OUT}，编译还没产出"; exit 1; }
 
+KEEP_PRODUCT="${KEEP_STOCK_PRODUCT:-1}"
+if [[ "${KEEP_PRODUCT}" == "1" ]]; then
+    IMGS=( system.img system_ext.img )
+    log "模式：保留原厂 product（只打包 system + system_ext）"
+else
+    IMGS=( system.img system_ext.img product.img )
+    log "模式：三个镜像全打包"
+fi
+
 log "检查产物存在性"
-for f in system.img system_ext.img product.img; do
+for f in "${IMGS[@]}"; do
     if [[ -f "${OUT}/${f}" ]]; then
         log "  OK   ${f}  $(stat -c%s "${OUT}/${f}") B"
     else
@@ -29,7 +38,7 @@ done
 # 必须在销毁云机之前做。镜像坏了重编要 ¥9.4，比多花两分钟验证贵得多。
 log "校验 EROFS 完整性（fsck.erofs）"
 VERIFY_FAIL=0
-for f in system.img system_ext.img product.img; do
+for f in "${IMGS[@]}"; do
     IMG="${OUT}/${f}"
     # 1. 魔数：EROFS superblock magic 在 offset 1024
     MAGIC=$(dd if="${IMG}" bs=1 skip=1024 count=4 2>/dev/null | od -An -tx1 | tr -d ' \n')
@@ -81,7 +90,7 @@ log "三个镜像全部通过验证"
 log "打包到 ${PKG}.tar.zst"
 mkdir -p "${DATA}"
 tar -I 'zstd -3 -T0' -cf "${PKG}.tar.zst" \
-    -C "${OUT}" system.img system_ext.img product.img
+    -C "${OUT}" "${IMGS[@]}"
 
 log "生成 SHA256"
 sha256sum "${PKG}.tar.zst" > "${PKG}.tar.zst.sha256"
@@ -93,9 +102,12 @@ echo "  大小   : ${SZ} B  ($((SZ/1024/1024)) MB)"
 echo "  校验   : ${PKG}.tar.zst.sha256"
 echo
 echo "  各镜像原始大小："
-for f in system.img system_ext.img product.img; do
+for f in "${IMGS[@]}"; do
     echo "    ${f}  $(stat -c%s "${OUT}/${f}") B"
 done
+if [[ "${KEEP_PRODUCT}" == "1" ]]; then
+    echo "    （product.img 未编译，刷机时保留原厂 product 分区）"
+fi
 echo
 echo "── 下载到你本地（在你的 Windows 上执行）──────────────────────"
 echo "scp -P <端口> root@<公网IP>:${PKG}.tar.zst ."

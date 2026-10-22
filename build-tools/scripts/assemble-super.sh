@@ -22,7 +22,17 @@ log()  { echo -e "\n\033[1;32m[super]\033[0m $*"; }
 die()  { echo -e "\n\033[1;31m[super:FAIL]\033[0m $*"; exit 1; }
 
 # ── 前置检查 ────────────────────────────────────────────────────────────────
-for f in system system_ext product; do
+# 保留原厂 product 时只处理 system + system_ext
+KEEP_PRODUCT="${KEEP_STOCK_PRODUCT:-1}"
+if [[ "${KEEP_PRODUCT}" == "1" ]]; then
+    PARTS=( system system_ext )
+    log "模式：保留原厂 product（只替换 system + system_ext）"
+else
+    PARTS=( system system_ext product )
+    log "模式：替换三个分区"
+fi
+
+for f in "${PARTS[@]}"; do
     [[ -f "${BUILT_DIR}/${f}.img" ]] || die "缺 ${BUILT_DIR}/${f}.img"
 done
 [[ -f "${ORIG_SUPER}" ]] || die "缺 ${ORIG_SUPER}"
@@ -57,8 +67,9 @@ for p in odm system system_dlkm system_ext product vendor vendor_dlkm; do
     s=$(lp "$p" start 2>/dev/null) || continue
     z=$(lp "$p" size 2>/dev/null) || continue
     case "$p" in
-        system|system_ext|product) act="替换" ;;
-        *)                          act="保留" ;;
+        system|system_ext) act="替换" ;;
+        product)           [[ "${KEEP_PRODUCT}" == "1" ]] && act="保留(原厂)" || act="替换" ;;
+        *)                 act="保留" ;;
     esac
     printf "  %-14s 0x%-12x %-14s %s\n" "$p" "$s" "$z" "$act"
 done
@@ -66,7 +77,7 @@ done
 # ── 尺寸检查 ────────────────────────────────────────────────────────────────
 log "检查编好的镜像能否放进原槽位"
 OVER=0
-for p in system system_ext product; do
+for p in "${PARTS[@]}"; do
     SZ=$(stat -c%s "${BUILT_DIR}/${p}.img")
     MAX=$(lp "$p" size)
     if (( SZ > MAX )); then
@@ -129,7 +140,7 @@ fi
 log "复制原 super 到 ${OUT}"
 cp "${ORIG_SUPER}" "${OUT}"
 
-for p in system system_ext product; do
+for p in "${PARTS[@]}"; do
     SRC="${BUILT_DIR}/${p}.img"
     SZ=$(stat -c%s "${SRC}")
     S=$(lp "$p" start)

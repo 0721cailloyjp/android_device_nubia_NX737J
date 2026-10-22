@@ -117,6 +117,44 @@ JOBS=8 bash scripts/03-build.sh
 
 ---
 
+## 2.5 保留 Z70S 的原厂 product（默认开启）
+
+扫 NX737J 的 super.img 实测，努比亚专有组件分布如下：
+
+| 分区 | 内容 |
+|---|---|
+| **system** | `com.zte.wallet`（钱包）、`com.zte.mifavor`（NeoVision 框架）、`cn.nubia.identity`、`cn.nubia.accounts`、`com.zte.cloud`、`com.zte.NFC_SIMULATION`、`cn.nubia.neopush` |
+| **system_ext** | `cn.nubia.identity` |
+| **product** | `cn.nubia.identity`、`cn.nubia.touping`（投屏）、`cn.nubia.provider.deviceid`、`cn.nubia.applearning`、**`com.zte.camera.SpecialTypesProvider`**、**`com.zte.bokeh`**、**`com.zte.imagesegmentation`**、**`com.zte.videosegmentation`**、`cn.nubia.camera.tools` |
+
+**相机算法三件套（bokeh / 图像分割 / 视频分割）全在 product 里。**
+换成 AOSP 的 product（几乎空镜像）= 人像虚化、AI 抠像、视频分割直接没了。
+
+而 AOSP 侧基本不往 product 放东西，替换它收益接近零。
+
+### 所以默认不编 product
+
+| 开关 | 行为 |
+|---|---|
+| `KEEP_STOCK_PRODUCT=1`（**默认**） | 只编 `system.img` + `system_ext.img`，product 保持原厂 |
+| `KEEP_STOCK_PRODUCT=0` | 三个都编（完全净化时用，会丢上面那些组件） |
+
+三个脚本都认这个开关：`03-build.sh` / `04-pack.sh` / `assemble-super.sh`。
+
+```bash
+# 默认就是保留
+bash scripts/03-build.sh
+
+# 想全替换
+KEEP_STOCK_PRODUCT=0 bash scripts/03-build.sh
+```
+
+**副作用**：原厂 product 的 `build.prop` 是小米的，会带一些 `ro.miui.*` / 产品身份属性。
+AOSP 不读这些，理论上不影响开机；万一开机异常，把它设成 0 重编一次
+（但重编要 ¥9~15，所以先试默认路径）。
+
+---
+
 ## 3. 阶段 C：降配打包下载
 
 **控制台：关机（不收费）→ 调整配置 → 8核16G → 开机**
