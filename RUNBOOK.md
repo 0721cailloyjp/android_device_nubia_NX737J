@@ -212,7 +212,9 @@ bash scripts/assemble-super.sh <产物目录> <原super.img> <新super.img>
 
 ---
 
-## 7. 已排除的 12 处坑
+## 7. 已排除的坑
+
+### 7.1 设备树配置（对照 NX789J 验证树修正的 12 处）
 
 | 项 | 我原来写的（错） | 现在（对） |
 |---|---|---|
@@ -230,3 +232,37 @@ bash scripts/assemble-super.sh <产物目录> <原super.img> <新super.img>
 | 多余继承 | inherit sm8750-common | 删掉 |
 
 外加：自造 overlay 的资源类型写错（`config_mainBuiltInDisplayCutout` 是 string 不是 bool），整目录已删。
+
+### 7.2 仓库依赖（2026-10-22 审计发现，会让编译直接挂）
+
+`repo sync` 完成后这三个路径原本会不存在，因为**它们不在 PixelOS / LineageOS 的默认 manifest 里**：
+
+| 路径 | 谁引用 | 处置 |
+|---|---|---|
+| `device/qcom/sepolicy_vndr` | BoardConfig `include .../SEPolicy.mk` | **已加入 local manifest**，分支必须是 `lineage-24.0-caf-sm8750`（SM8750 专用，不是通用 lineage-24.0） |
+| `device/lineage/sepolicy` | BoardConfig `SYSTEM_EXT_PRIVATE_SEPOLICY_DIRS` | **已加入 local manifest**，`lineage-24.0` |
+| `hardware/qcom-caf/wlan` | device.mk `PRODUCT_SOONG_NAMESPACES` + `libwifi-hal-qcom` | **已从设备树删除** —— 该路径在 LineageOS 组织下 **404，仓库不存在** |
+
+wifi 第一次开机不依赖它（stock vendor 提供 HAL）。等能开机了再找正确仓库补。
+
+### 7.3 已核实存在的依赖
+
+| 路径 | 来源 | 状态 |
+|---|---|---|
+| `vendor/lineage/config/BoardConfigLineage.mk` | PixelOS `android_vendor_lineage@seventeen` | ✅ 443 B |
+| `vendor/lineage/config/BoardConfigKernel.mk` | 同上 | ✅ 10.5 KB |
+| `vendor/lineage/config/BoardConfigSoong.mk` | 同上 | ✅ 2.2 KB |
+| `vendor/lineage/config/common_full_phone.mk` | 同上 | ✅ 279 B |
+| `external/avb/test/data/testkey_rsa2048.pem` | AOSP | ✅ 在 `external/avb` |
+| `PRODUCT_PACKAGES` 里 5 个模块 | AOSP | ✅ 全部为标准模块 |
+
+### 7.4 若编译报 `hardware/qcom-caf/common/BoardConfigQcom.mk` 缺失
+
+`vendor/lineage/config/BoardConfigLineage.mk` 里有一段：
+```make
+ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
+    include hardware/qcom-caf/common/BoardConfigQcom.mk
+endif
+```
+我没设 `BOARD_USES_QCOM_HARDWARE`，理论上不触发。真报了就把 `local_manifests/nx737j.xml` 里那段注释掉的
+`hardware/qcom-caf/common`（`LineageOS/android_hardware_qcom-caf_common @ lineage-24.0`）打开。

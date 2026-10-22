@@ -6,11 +6,13 @@
 PRODUCT_MAKEFILES := \
     $(LOCAL_DIR)/lineage_NX737J.mk
 
-# The bp4a suffix is the release config name. LineageOS 24.0 / PixelOS
-# seventeen use bp4a; if `lunch` rejects it, drop the suffix and use
-# lineage_NX737J-userdebug instead (03-build.sh auto-detects).
+# 只列不带 release-config 的形式。
+# 原因：release config 名随 Android 版本变化（A15=ap3a、A16=bp4a、A17=cp2a…），
+# 硬编码写错会让 lunch 菜单失效。`breakfast NX737J userdebug` 会自动从
+# PRODUCT_MAKEFILES 推导产品名并选对 release config，不依赖这里的列表。
+#
+# 03-build.sh 走 breakfast 优先，这条列表只作兜底。
 COMMON_LUNCH_CHOICES := \
-    lineage_NX737J-bp4a-user \
-    lineage_NX737J-bp4a-userdebug \
-    lineage_NX737J-bp4a-eng \
-    lineage_NX737J-userdebug
+    lineage_NX737J-userdebug \
+    lineage_NX737J-user \
+    lineage_NX737J-eng

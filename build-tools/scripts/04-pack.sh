@@ -51,21 +51,28 @@ for f in system.img system_ext.img product.img; do
     else
         echo "  WARN ${f}  magic 正确，但没装 fsck.erofs（apt install erofs-utils）"
     fi
-    # 3. 抽查关键目录是否真的存在（防止空镜像/严重缺文件）
-    for need in bin etc framework lib64; do
-        if fsck.erofs --extract=/tmp/probe_${f} "${IMG}" --path "/${need}" >/dev/null 2>&1 \
-           || fsck.erofs --extract=/tmp/probe_${f} "${IMG}" "/${need}" >/dev/null 2>&1; then
-            :
+    # 3. 抽查关键目录是否真的存在
+    #    用 debugfs 思路太复杂，改写：dump.erofs 列根目录，看有没有核心项。
+    #    没有 dump.erofs 就跳过（magic + fsck 已经是强验证）。
+    if command -v dump.erofs >/dev/null 2>&1; then
+        LISTING=$(dump.erofs "${IMG}" 2>/dev/null | awk '{print $NF}' | tr '\n' ' ')
+        HIT=0
+        for need in bin etc framework lib64; do
+            [[ "${LISTING}" == *"${need}"* ]] && HIT=$((HIT+1))
+        done
+        if (( HIT >= 3 )); then
+            echo "  OK   ${f}  根目录含 ${HIT}/4 个关键项"
+        else
+            echo "  WARN ${f}  根目录只找到 ${HIT}/4 个关键项（可能正常，也可能是空镜像）"
         fi
-    done
-    rm -rf /tmp/probe_${f} 2>/dev/null || true
+    fi
 done
 
 if (( VERIFY_FAIL )); then
     echo
     echo "!! 有镜像没通过验证。别销毁云机、别下载，先看上面报错。"
-    echo "!! 如果是 magic 不对 → BOARD_*_FILE_SYSTEM_TYPE 没设成 erofs"
-    echo "!! 如果是 fsck 报错 → 编译中途出错，看 /data/build.log"
+    echo "!! magic 不对    → BOARD_*_FILE_SYSTEM_TYPE 没设成 erofs"
+    echo "!! fsck 报错     → 编译中途出错，看 /data/build.log"
     exit 1
 fi
 log "三个镜像全部通过验证"
@@ -73,7 +80,7 @@ log "三个镜像全部通过验证"
 # ── 打包 ────────────────────────────────────────────────────────────────────
 log "打包到 ${PKG}.tar.zst"
 mkdir -p "${DATA}"
-tar -I 'zstd -19 -T0' -cf "${PKG}.tar.zst" \
+tar -I 'zstd -3 -T0' -cf "${PKG}.tar.zst" \
     -C "${OUT}" system.img system_ext.img product.img
 
 log "生成 SHA256"
