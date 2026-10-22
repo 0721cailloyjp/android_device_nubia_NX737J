@@ -84,6 +84,7 @@ declare -a NEED=(
     "system/app/zteaccount_mfv/zteaccount_mfv.apk"
     "system/priv-app/Wallet/Wallet.apk"
     "system/priv-app/WalletCore/WalletCore.apk"
+    "system/app/cc/cc.apk"
     "system_ext/framework/vendor.zte.hardware.camera.transferclient.jar"
     "system_ext/framework/com.st.android.nfc_extensions.jar"
     "system_ext/framework/com.st.android.nfc_extensions_16.jar"

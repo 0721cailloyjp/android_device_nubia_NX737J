@@ -8,7 +8,12 @@
 ## 0. 设备身份：确认是 Z70S Ultra（2026-10-22 实测留档）
 
 `ro.product.brand/model/device` 读出来是 `Xiaomi / 2410DPN6CC / haotian`，
-**这不代表硬件是小米** —— 移植包会把源 ROM 的身份属性原样带过来（改了会破坏 DRM/attestation）。
+**这不代表硬件是小米** —— 这是**用户自己用机型伪装改的**（设备名改成 mix7，
+应用识别出来的小尾巴是"小米 15 Pro"；`haotian` 正是小米 15 Pro 的代号）。
+
+> 归因更正：我一开始以为是移植包保留了源 ROM 的身份属性，其实是机型伪装模块/属性改写干的。
+> 两种解释在现象上一样，但结论不同：**这些伪装值不属于硬件，也不该被我们的构建继承。**
+
 真正的证据在硬件层：
 
 | 属性 | 值 | 说明 |
@@ -57,6 +62,38 @@ vendor.zte.nook.modem-V2-ndk.so / vendor.zte.subsys-V1-ndk.so
 **注意一个容易误解的点**：App dex 里"缺"的 `com.zte.aimodel.*` 是 **HAL 的 Java 侧封装**，
 真身是 `/vendor/lib64/vendor.zte.aimodel-V1-ndk.so`。vendor 里没有对应的 `-java.jar`，
 所以 Java 层那几个类确实没人提供 —— 这与现有移植包的状态一致，不是我们引入的问题。
+
+### 机型伪装（mix7 / 小米15Pro）刷完会消失，需要先决定
+
+**已经查清它是怎么实现的**：由 `com.cc.setting`（移植者的高级设置）写入
+`persist.cc.device.name` 这个持久化属性，再由某个开机环节套用。
+`persist.*` 属性存放在 `/data/property/`，**清 data 就没了**。
+
+| 实现方式 | 刷机后 |
+|---|---|
+| `persist.cc.device.name`（com.cc.setting 写的）← **当前这台就是这种** | **消失**（`/data/property` 被清） |
+| `/data/adb/modules/*` 的 Magisk/KernelSU 模块（resetprop） | **消失**（见第 6 节，必须清 data） |
+| `/system/build.prop` 里改的 | **消失**（我们把 system 整个换掉） |
+| `/vendor/build.prop` 里改的 | 保留（vendor 不动）—— 伪装一般不会写这儿 |
+
+也就是说刷完 PixelOS、清完 data，设备会恢复真实身份 `nubia NX737J`。
+好消息是 `com.cc.setting` 本身我们还留着（见 2.5.1），装上 KernelSU 管理器、
+给它 root 之后，**在原 App 里重新设一次**就行，不用另找模块。
+
+**如果想让它稳定存在**，可以烤进系统里（比模块干净，不受清 data 影响）：
+
+```make
+# device.mk 里加
+PRODUCT_BUILD_PROP_OVERRIDES += \
+    PRODUCT_MODEL=2410DPN6CC \
+    PRODUCT_DEVICE=haotian \
+    PRODUCT_BRAND=Xiaomi \
+    PRODUCT_MANUFACTURER=Xiaomi
+```
+
+代价：`ro.product.model` 之类会真的变成小米，副作用是 Play Integrity / 部分 DRM 判定、
+以及「这到底是不是 Z70S」以后自己都得记着。**v1 建议先不伪装**，能开机、功能正常之后
+再决定要不要加 —— 加了出问题很难判断是编译问题还是伪装问题。
 
 ---
 
@@ -248,6 +285,7 @@ KEEP_STOCK_PRODUCT=0 bash scripts/03-build.sh
 | `zteaccount_mfv.apk` | `org.zx.AuthComp` | 687 + 509 + 65 | 统一认证（登录依赖它） |
 | `Wallet.apk` | `com.zte.wallet` | 1512 + 41 | ZTE 钱包（priv-app） |
 | `WalletCore.apk` | `com.zte.wallet.core` | 11 | 钱包核心（priv-app） |
+| **`cc.apk`** | **`com.cc.setting`** | **1561（全自包含）** | **★ 移植者的「高级设置」**，见下 |
 | `vendor.zte.hardware.camera.transferclient.jar` | — | — | 相机流转的 Java 层 API |
 | `com.st.android.nfc_extensions.jar` | — | — | ST54L 的 NFC 扩展 API（130 KB） |
 | `com.st.android.nfc_extensions_16.jar` | — | — | 同上，16 版（195 KB） |
@@ -258,6 +296,33 @@ KEEP_STOCK_PRODUCT=0 bash scripts/03-build.sh
 > AOSP 的 `NfcNci` 只能做基础 NFC 读写，门禁卡 / 公交卡这类必须靠这两个库。
 > 325 KB，纯 Java 库、不占包名、不会和 AOSP 撞车。
 > 对应还有 `com.st.android.nfc_extensions{, _16}.xml` 两个 `<library>` 声明，必须一起带。
+
+### ★ `com.cc.setting`（`/system/app/cc/cc.apk`）—— 移植者的「高级设置」
+
+这是移植包作者自己写的努比亚功能开关，**不是系统设置的一部分**，
+所以之前按「努比亚包名」扫是扫不到的（包名 `com.cc.setting`，和 `com.cc.romfix.cameracompat` 同一个作者命名空间）。
+
+实测规格：v2.0 / versionCode 3 / minSdk 26 / **targetSdk 29**，
+只申请普通权限（`INTERNET`、`VIBRATE`、`ACCESS_WIFI_STATE`、存储读），
+**没有任何 priv-app 特权权限** → 放 `/system/app` 零风险。
+dex **完全自包含**（1561 个类，零 `miui`/`xiaomi`/`zte` 外部依赖）→ 搬到 AOSP 照样能跑。
+
+它靠 `su` 提权直接写 sysfs，控制这些硬件开关：
+
+| 功能 | sysfs 节点 |
+|---|---|
+| 风扇转速 | `/sys/kernel/fan/fan_enable`、`fan_speed_level` |
+| 充电分离 / 旁路充电 | `/sys/kernel/nubia_charge/charger_bypass`、`/sys/class/qcom-battery/charge_mode` |
+| 电池充电开关 | `/sys/class/qcom-battery/battery_charging_enabled`、`wireless_boost_en` |
+| RGB 灯效 | `/sys/class/leds/aw22xxx_led/cfg`、`effect` |
+| SAR 天线功率 | `/sys/class/leds/sar0/mode_operation`、`sar1/mode_operation` |
+| CPU 频率 | `/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq` |
+| 机型伪装 | `persist.cc.device.name` ← 你那个 mix7 / 小米15Pro 伪装就是它管的 |
+| 显示相机型号 | 读 `ro.vendor.feature.camera_zte_exif_model` |
+
+> ⚠️ **它写 sysfs 需要 root。** 刷完我们的包之后，如果没装 KernelSU 管理器并授权，
+> 这个 App 界面能打开，但开关点了不生效。
+> 换句话说：**「高级设置」能不能用，取决于你刷完后还 root 不 root。**
 
 > `WalletSupport.apk`（`com.zte.wallet.support`，47 MB）**故意不带**：
 > 缺 6 个 `com.zte.aimodel.*` / `com.zte.ctsutils.CtsUtils` / `com.zte.feature.Feature`，

@@ -25,6 +25,9 @@ PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/prebuilts/nubia-apps/WalletCore.apk:$(TARGET_COPY_OUT_SYSTEM)/priv-app/WalletCore/WalletCore.apk
 
 PRODUCT_COPY_FILES += \
+    $(LOCAL_PATH)/prebuilts/nubia-apps/CCSetting.apk:$(TARGET_COPY_OUT_SYSTEM)/app/cc/cc.apk
+
+PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/prebuilts/nubia-apps/vendor.zte.hardware.camera.transferclient.jar:$(TARGET_COPY_OUT_SYSTEM_EXT)/framework/vendor.zte.hardware.camera.transferclient.jar
 
 PRODUCT_COPY_FILES += \

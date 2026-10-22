@@ -104,13 +104,32 @@ fi
 #    真要加的话走 Release 资产（单文件上限 2 GB），别塞进 git：
 #        gh release upload <tag> WalletSupport.apk
 #    然后在 02-sync 阶段 curl 下来，再在 nubia-apps.mk 里补一行 PRODUCT_COPY_FILES。
+#
+# 条目格式： 名称  或  名称=安装目录
+#   默认「安装目录 = 名称」，即找 <dir>/<dir>.apk。
+#   目录名和 APK 名不一致时必须写成 名称=目录，否则找不到。
 declare -a WANT=(
     NBAccount              # cn.nubia.accounts      努比亚账号
     NBUserCenter           # cn.nubia.usercenter    努比亚用户中心
     zteaccount_mfv         # org.zx.AuthComp        ZTE 统一认证组件
     Wallet                 # com.zte.wallet         ZTE 钱包（priv-app）
     WalletCore             # com.zte.wallet.core    ZTE 钱包核心（priv-app）
+    CCSetting=cc           # com.cc.setting         ★移植者的「高级设置」，见下方说明
 )
+
+# ★ CCSetting（/system/app/cc/cc.apk，包名 com.cc.setting，v2.0）
+#   移植包作者自己写的努比亚功能开关，dex 完全自包含（1561 个类，零外部依赖），
+#   所以搬到 AOSP 上照样能跑。它靠 su 提权直接写 sysfs，控制：
+#     风扇    /sys/kernel/fan/fan_enable, fan_speed_level
+#     充电    /sys/kernel/nubia_charge/charger_bypass, /sys/class/qcom-battery/charge_mode
+#     灯效    /sys/class/leds/aw22xxx_led/cfg, effect
+#     SAR     /sys/class/leds/sar0/mode_operation, sar1
+#     CPU     /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq
+#     伪装    persist.cc.device.name   ← 设备名改成 mix7 / 小米15Pro 就是它管的
+#   只申请普通权限（INTERNET/存储/VIBRATE/ACCESS_WIFI_STATE），没有 priv-app 特权权限，
+#   放 /system/app 零风险。
+#   ⚠️ 它写 sysfs 要 root。刷完我们的包后如果没装 KernelSU 管理器并授权，
+#      这个 App 打开会没有实际效果（界面能开，开关不生效）。
 
 # 非 APK 的配套文件：Java 库 + 它们自己的 <library> 声明
 #
@@ -132,17 +151,20 @@ declare -a EXTRA=(
 declare -a FOUND=()
 declare -a XSAVED=()
 
-say "逐个定位（先扫目录，再试 pm path）"
-for name in "${WANT[@]}"; do
+say "逐个定位（先扫目录，再试 find）"
+for entry in "${WANT[@]}"; do
+    name="${entry%%=*}"
+    adir="${entry#*=}"
+    [[ "$adir" == "$entry" ]] && adir="$name"     # 没写 =目录 就用同名
     path=""
     # 1a. 扫常见安装目录
     for d in /system/priv-app /system/app /system_ext/priv-app /system_ext/app /product/priv-app /product/app; do
-        cand="$d/$name/$name.apk"
+        cand="$d/$adir/$adir.apk"
         if adb shell "[ -f $cand ]" 2>/dev/null; then path="$cand"; break; fi
     done
     # 1b. 目录名不叫这个时，模糊找一次
     if [[ -z "$path" ]]; then
-        path=$(adb shell "find /system /system_ext /product -name '${name}.apk' 2>/dev/null" 2>/dev/null \
+        path=$(adb shell "find /system /system_ext /product -name '${adir}.apk' 2>/dev/null" 2>/dev/null \
                | tr -d '\r' | head -1)
     fi
     if [[ -n "$path" ]]; then
@@ -150,7 +172,7 @@ for name in "${WANT[@]}"; do
         ok "$(printf '%-24s %-58s %s B' "$name" "$path" "${sz:-?}")"
         FOUND+=( "${name}|${path}" )
     else
-        warn "$(printf '%-24s 未找到' "$name")"
+        warn "$(printf '%-24s 未找到（找的是 %s.apk）' "$name" "$adir")"
     fi
 done
 
