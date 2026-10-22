@@ -11,3 +11,33 @@
 # Add device tuning ONLY after the first build boots.
 
 ro.zygote=zygote64
+
+# VINTF 兼容性检查要读这条，**开不了机级别的重要**
+#
+# 开机时 system_server 会做一次 VINTF 检查：
+#     厂商 manifest 的 target-level  <=  ro.board.api_level
+# 不满足就直接判为不兼容，起不来。
+#
+# ro.board.api_level 没设的时候会退回 ro.vndk.version，再退回 ro.build.version.sdk。
+# 而这台机器的 ro.vndk.version 是**空的**（我们实测过，说明它不走 VNDK，
+# 靠 LLNDK + vendor snapshot —— 这也正是 A17 system 能配 A15 vendor 的原因）。
+# 于是就会退到 sdk=37，去和厂商 manifest 的 202404 比，必然判不兼容。
+#
+# 原机实测值（MIX 7：system 17/CP2A + odm 15/AQ3A 官方就这么出货）：
+#     ro.board.api_level       = 202404
+#     ro.board.first_api_level = 202404
+#     ro.product.first_api_level = 35   ← 这个由 device.mk 的 PRODUCT_SHIPPING_API_LEVEL 给
+#
+# 我们只编 system，不编 vendor，所以这里显式写一遍兜底。值与原厂一致，不会改变行为。
+ro.board.api_level=202404
+ro.board.first_api_level=202404
+
+# 首次 bring-up 保险：priv-app 特权权限校验降级为「只记日志」
+#
+# 我们把努比亚钱包三个包放回了 /system/priv-app。原厂白名单只覆盖
+# com.zte.wallet 和 com.zte.wallet.core，**没有** com.zte.wallet.support。
+# 如果 .support 请求了某个 signature|privileged 权限而白名单里没有，
+# user 构建默认 enforce 会让 PackageManager 在扫描阶段直接抛异常 —— 起不来。
+# userdebug 默认就是 log，所以这行主要是给后面出 user 包时兜底。
+# 确认能开机、并把白名单补全之后，可以删掉。
+ro.control_privapp_permissions=log

@@ -155,28 +155,51 @@ AOSP 不读这些，理论上不影响开机；万一开机异常，把它设成
 
 ---
 
-### 2.5.1 system 侧的努比亚 App（会丢，可回注）
+### 2.5.1 system / system_ext 侧的努比亚组件（会丢，已回注）
 
-换 system 分区会丢掉原厂装在 system 里的努比亚 App。实测清单：
+换掉这两个分区会丢掉厂商 App。**注意：不能靠目录名猜**——手机当前跑的是澎湃4 移植包，
+它的 `/system`、`/system_ext` 本身就是小米的，里面混着一批「长得像努比亚、其实是小米」的东西。
 
-| APK | 用途 |
+所以清单是**逐个解析 dex 交叉验证**出来的（`scripts/apk-dep-scan.py`，
+读 type_ids − class_defs 得出真实外部依赖，不是字符串搜索）：
+
+**保留（dex 里没有任何 miui/xiaomi 外部依赖）**
+
+| APK | 包名 | 自包含类数 | 用途 |
+|---|---|---|---|
+| `NBAccount.apk` | `cn.nubia.accounts` | 751 + 82 | 努比亚账号 |
+| `NBUserCenter.apk` | `cn.nubia.usercenter` | 787 + 74 | 用户中心 |
+| `zteaccount_mfv.apk` | `org.zx.AuthComp` | 687 + 509 + 65 | 统一认证（登录依赖它） |
+| `Wallet.apk` | `com.zte.wallet` | 1512 + 41 | ZTE 钱包（priv-app） |
+| `WalletCore.apk` | `com.zte.wallet.core` | 11 | 钱包核心（priv-app） |
+| `WalletSupport.apk` | `com.zte.wallet.support` | 522 | 钱包支撑（priv-app） |
+| `vendor.zte.hardware.camera.transferclient.jar` | — | — | 相机流转的 Java 层 API |
+
+**剔除（并写明为什么）**
+
+| 文件 | 真实身份 | 剔除原因 |
+|---|---|---|
+| `Nfc_st.apk` | `com.android.nfc` | 是 AOSP NFC 应用的小米定制版，引用 `Lcom/xiaomi/nfc/IMiNfcAdapter`、`Lmiui/os/HyperOSCustFeatureResolve`；而且包名和 AOSP 的 `NfcNci` **完全一样**，带上去就是撞包 |
+| `CameraMind.apk` | `com.xiaomi.cameramind` | 小米「相机大脑」，1296 处自有类 + 24 处 `Lmiui/app/MiuiFreeFormManager`，是随 HyperOS 带来的，跟努比亚无关 |
+| `CameraExtensionsProxy.apk` | `com.android.cameraextensions` | 与 AOSP 同名包冲突的风险大于收益，v1 不带 |
+| `RomFixCameraCompat.apk` | `com.cc.romfix.cameracompat` | 移植者自己加的相机兼容补丁，跟我们的构建无关 |
+
+**已知缺失的类（不影响开机，且与现在的移植包状态一致）**
+
+| APK | 缺什么 |
 |---|---|
-| `NBAccount.apk` | 努比亚账号 |
-| `NBUserCenter.apk` | 用户中心 |
-| `zteaccount_mfv.apk` | 账号框架（mfv = mifavor） |
-| `Nfc_st.apk` | NFC |
-| `CameraMind.apk` | 相机 |
-| `CameraExtensionsProxy.apk` | 相机扩展 |
-| `RomFixCameraCompat.apk` | 相机兼容修正 |
+| `Wallet` | `com.zte.feature.Feature` |
+| `WalletSupport` | `com.zte.aimodel.*`（4 个）、`com.zte.ctsutils.CtsUtils`、`com.zte.feature.Feature` |
+| `zteaccount_mfv` | `com.zte.aimodel.*`（4 个） |
 
-（对照：`MiuiSystemUI.apk` / `Joyose.apk` 是小米的，不用管）
-
-**移植包作者特意把这批留在 system 里**，说明摘掉会出问题。回注成本很低：
+这几个类在你**现在的澎湃4 移植包里同样不存在**（我们扫过 `/system`、`/system_ext`，
+除 transferclient 外没有任何 zte 的 jar）。也就是说这几个 App 今天是同样的残缺状态，
+搬过去不会产生新的退化——只是"维持现状"，不是"变差"。
 
 **两条路拿 APK，任选其一：**
 
 ```bash
-# 【快】直接从手机拉（几十 MB，几秒钟，本地跑）
+# 【快】直接从手机拉（约 107 MB，本地跑，已实测通过）
 bash scripts/09-pull-nubia-apps.sh --list   # 先看找到什么
 bash scripts/09-pull-nubia-apps.sh          # 再拉
 
@@ -185,7 +208,7 @@ bash scripts/08-extract-nubia-apps.sh /path/to/super.img
 ```
 
 两个脚本都会产出：
-- `device/nubia/NX737J/prebuilts/nubia-apps/*.apk`（+ 相关 privapp-permissions XML）
+- `device/nubia/NX737J/prebuilts/nubia-apps/`（APK + jar + privapp-permissions XML）
 - `device/nubia/NX737J/nubia-apps.mk`（PRODUCT_COPY_FILES 规则）
 
 `device.mk` 末尾已经写好了：
@@ -199,9 +222,21 @@ bash scripts/08-extract-nubia-apps.sh /path/to/super.img
 
 **流程**：跑完提取 → `python scripts/gh-push.py` 推 GitHub → 云端 sync 时自动拉到。
 
+⚠️ 两个配套的权限文件必须一起回注，缺一个就会静默失效：
+
+1. `privapp_permissions_whitelist_com.zte.wallet.xml` → `/system/etc/permissions/`
+   钱包是 priv-app，用户构建 default `enforce` 时，请求了 `Signature|privileged` 权限却没在
+   白名单里，**PackageManager 扫描阶段直接抛异常，开不了机**。
+   白名单只覆盖 `com.zte.wallet` 和 `.core`，没覆盖 `.support` ——
+   所以 `system.prop` 里加了 `ro.control_privapp_permissions=log` 兜底，开机确认后再删。
+
+2. `vendor.zte.hardware.camera.transferclient.xml` → `/system_ext/etc/permissions/`
+   它用 `<library file="...">` 指向同目录的那个 jar。少一个，声明就指向空文件，
+   PackageManager 报 "Could not find library"，用到它的 App 直接崩。
+
 ⚠️ 如果某个 App 闪退，logcat 搜 `NoClassDefFoundError` / `NoSuchMethodError`，
-看是不是指向 `com.zte.mifavor.*`（努比亚自己的 framework）。那种 AOSP 补不了，
-把 `nubia-apps.mk` 里对应的 PRODUCT_COPY_FILES 行删掉即可，不影响其他 App。
+对照上面「已知缺失的类」那张表——已经在表里的就是移植包也补不了的东西，
+把 `nubia-apps.mk` 里对应的 PRODUCT_COPY_FILES 行删掉即可，不影响其他 App、也不影响开机。
 
 ---
 

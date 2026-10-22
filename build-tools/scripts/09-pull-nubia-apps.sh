@@ -14,18 +14,26 @@
 #
 set -uo pipefail
 
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT="$(cd "${HERE}/.." && pwd)"
+# ⚠️ Git Bash / MSYS2 会把「看起来像路径」的参数改写成 Windows 路径：
+#      adb pull /system/app/NBAccount/NBAccount.apk  →
+#      adb: error: failed to stat remote object
+#        'C:/Users/xxx/PortableGit/system/app/NBAccount/NBAccount.apk'
+#    所以全局关掉路径转换（MSYS_NO_PATHCONV），改由本脚本自己保证：
+#      · 手机端路径  原样传（/system/... 不动）
+#      · 本地路径    一开始就用 Windows 形式（pwd -W 取 F:/...），不依赖转换
+export MSYS_NO_PATHCONV=1
+export MSYS2_ARG_CONV_EXCL='*'
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && { pwd -W 2>/dev/null || pwd; })"
+ROOT="$(cd "${HERE}/.." && { pwd -W 2>/dev/null || pwd; })"
 DEV="${ROOT}/device-nubia-NX737J"
 OUT="${DEV}/prebuilts/nubia-apps"
 MK="${DEV}/nubia-apps.mk"
 
 LISTONLY=0
-FORCE=0
 for a in "$@"; do
     case "$a" in
         --list)  LISTONLY=1 ;;
-        --force) FORCE=1 ;;
     esac
 done
 
@@ -53,31 +61,67 @@ command -v adb >/dev/null 2>&1 || {
     exit 1
 }
 adb devices | grep -qw device || { echo "adb 看不到设备。先开 USB 调试并授权。"; exit 1; }
-DEV=$(adb shell getprop ro.product.device 2>/dev/null | tr -d '\r')
+RDEV=$(adb shell getprop ro.product.device 2>/dev/null | tr -d '\r')
 MODEL=$(adb shell getprop ro.product.model 2>/dev/null | tr -d '\r')
 BRAND=$(adb shell getprop ro.product.brand 2>/dev/null | tr -d '\r')
 REL=$(adb shell getprop ro.build.version.release 2>/dev/null | tr -d '\r')
-say "设备：${DEV}  /  ${MODEL}  /  ${BRAND}  /  Android ${REL}"
+say "设备：${RDEV}  /  ${MODEL}  /  ${BRAND}  /  Android ${REL}"
 
-# 设备校验：拉的是努比亚的东西，连错设备会白忙一场
-case "${BRAND}${DEV}${MODEL}" in
-    *nubia*|*Nubia*|*ZTE*|*zte*|*NX737*|*NX789*) : ;;
-    *)
-        echo
-        echo -e "  \033[1;31m⚠️  这台看起来不是努比亚设备\033[0m"
-        echo "     brand=${BRAND}  device=${DEV}  model=${MODEL}"
-        echo "     要拉的是 Z70S（NX737J）或红魔10（NX789J）上的 /system 里的努比亚 App。"
-        echo "     如果确认要在这台上找，加 --force 跳过检查。"
-        echo
-        [[ "${1:-}" == "--force" ]] || exit 2
-        ;;
-esac
+# 设备提示（**不阻断**）
+#
+# 移植包会把源 ROM 的 ro.product.* 身份属性原样带过来（改了会破坏 DRM / attestation）：
+#   本机的 Z70S（物理 NX737J）跑澎湃4 移植包时，实测读到的是
+#   ro.product.device = haotian / model = 2410DPN6CC / brand = Xiaomi —— 这是 MIX 7 的身份。
+# 所以「brand 不是 nubia」不代表连错了机器，只提示一句，继续往下走。
+if ! case "${BRAND}${RDEV}${MODEL}" in *nubia*|*Nubia*|*ZTE*|*zte*|*NX737*|*NX789*) true;; *) false;; esac; then
+    warn "这台的身份属性不是努比亚（brand=${BRAND} device=${RDEV} model=${MODEL}）"
+    warn "移植包保留源 ROM 身份时会出现这种情况，属正常。继续查找。"
+fi
 
 # ── 1. 定位 APK ─────────────────────────────────────────────────────────────
 # 以「目录名 = APK 名」为主（这是扫 super.img 实测出来的，最可靠），
 # pm path 作为辅助（用于确认包名，顺便拿到真实路径）。
-declare -a WANT=(NBAccount NBUserCenter zteaccount_mfv Nfc_st CameraMind CameraExtensionsProxy RomFixCameraCompat)
+#
+# ⚠️ 这里的名单是**逐个 dex 校验过**的，不是凭目录名猜的。
+#    手机当前跑的是澎湃4 移植包，它的 /system 本身就是小米的，
+#    所以里面混着一批「不是努比亚」的东西，必须剔掉：
+#
+#    ✗ CameraMind        → com.xiaomi.cameramind      小米相机大脑，引用 Lmiui/app/MiuiFreeFormManager
+#    ✗ Nfc_st            → com.android.nfc            本质是 AOSP NFC 应用的小米定制版，
+#                                                     引用 Lcom/xiaomi/nfc/IMiNfcAdapter、Lmiui/os/HyperOSCustFeatureResolve；
+#                                                     而且会和 AOSP 自带的 NfcNci **撞包名**，绝不能带
+#    ✗ CameraExtensionsProxy → com.android.cameraextensions
+#                                                     与 AOSP 同名包冲突风险 > 收益，v1 不带
+#    ✗ RomFixCameraCompat    → com.cc.romfix.cameracompat  移植者自加的兼容补丁，跟我们无关
+#
+#    ✓ 下面这些是真正的努比亚/ZTE 组件，dex 里没有 miui/xiaomi 框架依赖
+#
+# ⚠️ WalletSupport（com.zte.wallet.support，47 MB）**故意不带**：
+#    1. 它缺 6 个外部类（com.zte.aimodel.*、com.zte.ctsutils.CtsUtils、com.zte.feature.Feature），
+#       核心的 AI / 语音能力在 AOSP 上本来就跑不起来 —— 你现在的移植包也一样缺；
+#    2. 47 MB 单个 blob 过不了 GitHub Git Data API（实测 HTTP 422
+#       "input was too large to process"，JSON base64 的实际上限在 40~50 MB）。
+#    真要加的话走 Release 资产（单文件上限 2 GB），别塞进 git：
+#        gh release upload <tag> WalletSupport.apk
+#    然后在 02-sync 阶段 curl 下来，再在 nubia-apps.mk 里补一行 PRODUCT_COPY_FILES。
+declare -a WANT=(
+    NBAccount              # cn.nubia.accounts      努比亚账号
+    NBUserCenter           # cn.nubia.usercenter    努比亚用户中心
+    zteaccount_mfv         # org.zx.AuthComp        ZTE 统一认证组件
+    Wallet                 # com.zte.wallet         ZTE 钱包（priv-app）
+    WalletCore             # com.zte.wallet.core    ZTE 钱包核心（priv-app）
+)
+
+# 非 APK 的配套文件：Java 库 + 它自己的 <library> 声明
+# transferclient.jar 是努比亚相机流转（把相机画面投给别的设备）的 Java 层 API，
+# 对应的 XML 用 <library file="..."> 指向它。少一个，声明就指向空文件，
+# PackageManager 会报 "Could not find library"，用到它的 App 直接崩。
+declare -a EXTRA=(
+    /system_ext/framework/vendor.zte.hardware.camera.transferclient.jar
+)
+
 declare -a FOUND=()
+declare -a XSAVED=()
 
 say "逐个定位（先扫目录，再试 pm path）"
 for name in "${WANT[@]}"; do
@@ -129,46 +173,93 @@ done
 
 (( ${#SAVED[@]} > 0 )) || { echo "全部拉取失败。可能 /system 需要 root 才能读，试试：adb root"; exit 1; }
 
-# ── 3. 找 privapp-permissions ───────────────────────────────────────────────
-say "找相关的 privapp-permissions XML"
-for x in $(adb shell 'ls /system/etc/permissions /system_ext/etc/permissions /product/etc/permissions 2>/dev/null' | tr -d '\r' | grep -iE 'nubia|zte'); do
-    adb pull "/system/etc/permissions/$x" "${OUT}/" >/dev/null 2>&1 \
-      || adb pull "/system_ext/etc/permissions/$x" "${OUT}/" >/dev/null 2>&1 \
-      || adb pull "/product/etc/permissions/$x" "${OUT}/" >/dev/null 2>&1
-    [[ -f "${OUT}/$x" ]] && ok "$x"
+# ── 2b. 配套的 jar / 其它文件 ───────────────────────────────────────────────
+declare -a ESAVED=()
+for src in "${EXTRA[@]}"; do
+    bn="${src##*/}"
+    dst="${OUT}/${bn}"
+    if adb pull "$src" "$dst" >/dev/null 2>&1 && [[ -s "$dst" ]]; then
+        ok "$(printf '%-52s %8d B' "$bn" "$(stat -c%s "$dst")")"
+        ESAVED+=( "${bn}|${src}" )
+    else
+        warn "$bn 拉取失败（$src）"
+    fi
 done
+
+# ── 3. 找 privapp-permissions ───────────────────────────────────────────────
+# 这些 XML 声明了努比亚 App 的特权权限。**必须跟着 App 一起回注**，
+# 否则开机时 system_server 会因 Signature|privileged 权限未在白名单里而拒绝授权，
+# 表现为 App 打开就崩、或账号/NFC 功能静默失效。
+say "找相关的 privapp-permissions XML"
+PMAP=$(adb shell 'for d in /system/etc/permissions /system_ext/etc/permissions /product/etc/permissions; do ls -1 $d 2>/dev/null | sed "s|^|$d/|"; done' 2>/dev/null \
+       | tr -d '\r' | grep -iE 'nubia|zte' || true)
+if [[ -z "$PMAP" ]]; then
+    warn "没找到 nubia/zte 相关的权限 XML（可能本来就没有，或用了别的命名）"
+else
+    declare -a XSAVED=()
+    while IFS= read -r x; do
+        [[ -n "$x" ]] || continue
+        if adb pull "$x" "${OUT}/" >/dev/null 2>&1; then
+            ok "${x##*/}"
+            XSAVED+=( "${x##*/}|${x}" )
+        fi
+    done <<< "$PMAP"
+fi
 
 # ── 4. 生成打包规则 ─────────────────────────────────────────────────────────
 say "生成 ${MK##*/}"
 {
     echo "# 自动生成，勿手改 —— 由 scripts/09-pull-nubia-apps.sh 产出"
     echo "#"
-    echo "# 从原厂 /system 回注的努比亚 App。移植包作者在换成澎湃4之后仍保留它们，"
-    echo "# 说明摘掉会导致努比亚的账号 / NFC / 相机扩展出问题。"
+    echo "# 回注的努比亚 / ZTE 组件。每一项都做过 dex 检查，确认不依赖 miui/xiaomi 框架类。"
+    echo "#"
+    echo "# 为什么要回注：我们把 /system 和 /system_ext 换成 AOSP，这两个分区里的"
+    echo "# 厂商 App 会一起消失。账号、钱包这类东西是跟努比亚账号体系绑的，"
+    echo "# AOSP 补不出来，只能原样搬回去。"
+    echo "#"
+    echo "# 为什么放在同一分区：privapp-permissions XML 是按分区的 etc/permissions 扫描的。"
+    echo "# 把 priv-app 的 App 挪到别处会让它的特权权限失配，开机后 Signature|privileged 报错。"
     echo ""
 } > "${MK}"
 
 for entry in "${SAVED[@]}"; do
     name="${entry%%|*}"
     orig="${entry##*|}"
-    dir=$(dirname "$orig")
-    dest="/system/app/${name}/${name}.apk"
-    case "$dir" in
-        */priv-app/*) dest="/system/priv-app/${name}/${name}.apk" ;;
-    esac
+    # 目标路径 = 原路径，去掉最前面的 /（保持在同一分区）
+    #   /system/app/Foo/Foo.apk      → system/app/Foo/Foo.apk
+    #   /system_ext/app/Bar/Bar.apk  → system_ext/app/Bar/Bar.apk
+    # 分区必须保持一致：privapp-permissions XML 是按分区的 etc/permissions 扫描的，
+    # 把 system_ext 的 App 挪到 /system 会让它的特权权限失配（开机后 Signature|privileged 报错）。
+    dest="${orig#/}"
     {
         echo "PRODUCT_COPY_FILES += \\"
-        echo "    \$(LOCAL_PATH)/prebuilts/nubia-apps/${name}.apk:${dest}"
+        echo "    \$(LOCAL_PATH)/prebuilts/nubia-apps/${name}.apk:\$(TARGET_COPY_OUT_$(printf '%s' "${dest%%/*}" | tr '[:lower:]' '[:upper:]'))/${dest#*/}"
         echo ""
     } >> "${MK}"
 done
 
-for x in "${OUT}"/*.xml; do
-    [[ -f "$x" ]] || continue
-    bn=$(basename "$x")
+for entry in "${ESAVED[@]:-}"; do
+    [[ -n "$entry" ]] || continue
+    bn="${entry%%|*}"
+    orig="${entry##*|}"
+    dest="${orig#/}"
+    part="${dest%%/*}"
     {
         echo "PRODUCT_COPY_FILES += \\"
-        echo "    \$(LOCAL_PATH)/prebuilts/nubia-apps/${bn}:\$(TARGET_COPY_OUT_SYSTEM)/etc/permissions/${bn}"
+        echo "    \$(LOCAL_PATH)/prebuilts/nubia-apps/${bn}:\$(TARGET_COPY_OUT_$(printf '%s' "$part" | tr '[:lower:]' '[:upper:]'))/${dest#*/}"
+        echo ""
+    } >> "${MK}"
+done
+
+for entry in "${XSAVED[@]:-}"; do
+    [[ -n "$entry" ]] || continue
+    bn="${entry%%|*}"
+    orig="${entry##*|}"
+    dest="${orig#/}"
+    part="${dest%%/*}"
+    {
+        echo "PRODUCT_COPY_FILES += \\"
+        echo "    \$(LOCAL_PATH)/prebuilts/nubia-apps/${bn}:\$(TARGET_COPY_OUT_$(printf '%s' "$part" | tr '[:lower:]' '[:upper:]'))/${dest#*/}"
         echo ""
     } >> "${MK}"
 done

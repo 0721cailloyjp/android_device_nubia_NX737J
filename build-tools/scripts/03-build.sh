@@ -178,3 +178,14 @@ ls -la "${OUT_DIR}"/*.img 2>/dev/null | grep -E 'system|product' || true
 if [[ "${KEEP_PRODUCT}" == "1" ]]; then
     log "注意：本次没编 product.img，刷机时保留原厂 product 分区"
 fi
+
+# ── 编完立刻自检（编译成功 ≠ 能开机）──────────────────────────────────────
+# 查 build.prop 关键属性、努比亚组件是否真的进镜像、镜像是否超出 super 槽位。
+# 失败不删产物（方便排查），但把退出码带出去，避免带着病进打包环节。
+echo
+VERIFY="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/10-verify-out.sh"
+if [[ -f "${VERIFY}" ]]; then
+    bash "${VERIFY}" "${OUT_DIR}" || die "自检有 FAIL —— 产物保留在 ${OUT_DIR}，先别刷机"
+else
+    echo -e "\033[1;33m[build]\033[0m 跳过自检：找不到 ${VERIFY}"
+fi
