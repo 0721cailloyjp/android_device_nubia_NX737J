@@ -124,6 +124,13 @@ def build_file_map(root: str, device_dir: str):
             if os.path.isfile(p) and not fn.endswith(".pyc"):
                 add(p, "build-tools/scripts/" + fn)
 
+    lm = os.path.join(root, "local_manifests")
+    if os.path.isdir(lm):
+        for fn in sorted(os.listdir(lm)):
+            p = os.path.join(lm, fn)
+            if os.path.isfile(p):
+                add(p, "build-tools/local_manifests/" + fn)
+
     for doc in ("README.md", "RUNBOOK.md"):
         p = os.path.join(root, doc)
         if os.path.isfile(p):

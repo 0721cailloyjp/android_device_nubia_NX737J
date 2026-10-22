@@ -35,9 +35,17 @@ PRODUCT_PACKAGES += \
 PRODUCT_PACKAGES += \
     fastbootd
 
-# ── WiFi system-side HAL glue (dodge/sm8750-common pattern) ────────────────
-PRODUCT_PACKAGES += \
-    libwifi-hal-qcom
+# ── WiFi system-side HAL glue ───────────────────────────────────────────────
+# DISABLED for the bootstrap build.
+# NX789J builds `libwifi-hal-qcom` from hardware/qcom-caf/wlan, but that path
+# does not exist in the LineageOS org (404 as of 2026-10) and is NOT in the
+# default PixelOS/LineageOS manifest. Keeping the dependency = guaranteed
+# "module not found" build failure.
+#
+# WiFi on this hybrid comes from the STOCK vendor partition anyway, so it is
+# not needed for first boot. Re-enable together with the correct repo once
+# you have a booting build and want to chase wifi.
+# PRODUCT_PACKAGES += libwifi-hal-qcom
 
 # ── Overlays ────────────────────────────────────────────────────────────────
 # DISABLED for the bootstrap build. An overlay that names a resource which
@@ -51,8 +59,7 @@ PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/rootdir/etc/init/init.nx737j.rc:$(TARGET_COPY_OUT_SYSTEM)/etc/init/init.nx737j.rc
 
 # ── Soong namespaces ────────────────────────────────────────────────────────
-# wifi HAL + qcwcn driver-cmd lib live in namespaced dirs.
+# Only the device tree itself. hardware/qcom-caf/wlan is intentionally dropped
+# (repo does not exist at that path), so no qcwcn namespace here.
 PRODUCT_SOONG_NAMESPACES += \
-    hardware/qcom-caf/wlan \
-    hardware/qcom-caf/wlan/qcwcn \
     $(LOCAL_PATH)

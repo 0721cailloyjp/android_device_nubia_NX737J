@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  local_manifests/nx737j.xml
+
+  设计原则：第一次编译要能开机，所以依赖面越小越好。
+  但下面这三个是「设备树里 include 了、ROM 默认 manifest 却没有」的必补项，
+  少一个就会在 BoardConfig / product 解析阶段直接挂掉。
+
+  已核实（2026-10-22）：
+    · PixelOS-AOSP/android_manifest @ seventeen 和 LineageOS/android @ lineage-24.0
+      的 default.xml 里都 NOT 有 device/qcom/sepolicy_vndr、device/lineage/sepolicy
+    · hardware/qcom-caf/wlan 在 LineageOS 组织下 404，所以设备树里已移除该依赖
+-->
+<manifest>
+
+  <remote name="gh" fetch="https://github.com" />
+
+  <!-- ═══ 设备树（含 prebuilts/Image 38 MB）═══ -->
+  <project path="device/nubia/NX737J"
+           name="0721cailloyjp/android_device_nubia_NX737J"
+           remote="gh"
+           revision="main" />
+
+  <!-- ═══ 必补依赖 1：高通 vendor sepolicy ═══
+       BoardConfig.mk 里有 include device/qcom/sepolicy_vndr/SEPolicy.mk
+       分支必须带 caf-sm8750 —— 这是 SM8750 平台专用分支，不是通用 lineage-24.0 -->
+  <project path="device/qcom/sepolicy_vndr"
+           name="LineageOS/android_device_qcom_sepolicy_vndr"
+           remote="gh"
+           revision="lineage-24.0-caf-sm8750" />
+
+  <!-- ═══ 必补依赖 2：LineageOS 动态 HAL sepolicy ═══
+       BoardConfig 里 SYSTEM_EXT_PRIVATE_SEPOLICY_DIRS 会 filter-out
+       device/lineage/sepolicy/qcom/dynamic；仓库缺失会让变量变空导致
+       system_ext 私有策略丢失。 -->
+  <project path="device/lineage/sepolicy"
+           name="LineageOS/android_device_lineage_sepolicy"
+           remote="gh"
+           revision="lineage-24.0" />
+
+  <!-- ═══ 暂不添加（按需开启）═══
+
+       hardware/qcom-caf/common
+         vendor/lineage/config/BoardConfigLineage.mk 里有一句：
+           ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
+               include hardware/qcom-caf/common/BoardConfigQcom.mk
+           endif
+         我写的 BoardConfig 没有设 BOARD_USES_QCOM_HARDWARE，所以不会触发。
+         如果编译报 "hardware/qcom-caf/common/BoardConfigQcom.mk: No such file"，
+         就取消下面这段注释：
+
+       <project path="hardware/qcom-caf/common"
+                name="LineageOS/android_hardware_qcom-caf_common"
+                remote="gh" revision="lineage-24.0" />
+
+       hardware/qcom-caf/wlan
+         已从 device.mk 移除依赖（该路径在 LineageOS 组织下 404）。
+         wifi 由 stock vendor 提供，第一次开机不依赖它。
+         如果之后要修 wifi 再单独找正确的仓库。
+
+       vendor/nubia/NX737J
+         不建 blobs 仓库，四个硬件层分区直接从 super.img dd。
+
+  -->
+
+</manifest>
