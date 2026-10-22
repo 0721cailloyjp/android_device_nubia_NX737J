@@ -77,7 +77,7 @@ apt-get update -qq
 # AOSP 官方依赖集 + EROFS/AVB 相关工具。分两批装：
 # 第一批是硬需求（缺了必失败），第二批尽力而为（缺了只是某些可选步骤不可用）。
 apt-get install -y -qq \
-    git curl wget zip unzip tar xz-utils zstd lz4 lzop \
+    git git-lfs curl wget zip unzip tar xz-utils zstd lz4 lzop \
     python3 python3-pip python-is-python3 python3-venv \
     build-essential bc bison flex g++-multilib gcc-multilib \
     libssl-dev libelf-dev libncurses-dev lib32z1-dev lib32ncurses-dev \

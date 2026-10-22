@@ -95,20 +95,16 @@ OUT_DIR="${TREE}/out/target/product/NX737J"
 # ── 要不要编 product？────────────────────────────────────────────────────────
 # KEEP_STOCK_PRODUCT=1（默认）：不编 product，刷机时保留原厂 product 分区。
 #
-#   理由：努比亚的相机算法组件全在 product 里，扫 super.img 实测发现
-#       com.zte.camera.SpecialTypesProvider
-#       com.zte.bokeh                       ← 人像虚化
-#       com.zte.imagesegmentation           ← 图像分割
-#       com.zte.videosegmentation           ← 视频分割
-#       cn.nubia.camera.tools
-#       cn.nubia.touping                    ← 投屏
-#       cn.nubia.identity / provider.deviceid
-#   换成 AOSP 的 product（几乎空镜像）会把这些全丢掉，
-#   Z70S 的相机高级功能直接残废。
+#   真实理由（2026-10-22 真机实测，之前写错过一次）：
+#     product 里**没有**努比亚组件（zte 库 0、zte 权限 0、zte 包 0，全是小米的）。
+#     保留它是因为 AOSP 的 product 没有这些东西：
+#       ① QTI 电话 Java 层（qti_telephony_*、vendor.qti.hardware.data.connection*、
+#          lpa.xml、UimGba*）→ 丢了 VoLTE / 5G 通话 / eSIM 大概率废
+#       ② /product/etc/vintf/ 的兼容性矩阵片段
+#       ③ 71 个设备配置 RRO
+#     详见 RUNBOOK 2.5。
 #
-#   AOSP 侧几乎不往 product 放东西，替换它收益接近零。
-#
-# KEEP_STOCK_PRODUCT=0：按 NX789J 的做法编三个镜像（想要完全净化时用）。
+# KEEP_STOCK_PRODUCT=0：三个都编（完全净化时用，会丢上面那三样）。
 #
 KEEP_PRODUCT="${KEEP_STOCK_PRODUCT:-1}"
 
