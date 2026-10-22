@@ -63,3 +63,16 @@ PRODUCT_COPY_FILES += \
 # (repo does not exist at that path), so no qcwcn namespace here.
 PRODUCT_SOONG_NAMESPACES += \
     $(LOCAL_PATH)
+
+# ── 努比亚专有 App 回注（可选）───────────────────────────────────────────────
+# 原厂 system 里有几个努比亚自己的 App，换 system 会丢：
+#   NBAccount / NBUserCenter / zteaccount_mfv / Nfc_st /
+#   CameraMind / CameraExtensionsProxy / RomFixCameraCompat
+#
+# 想回注就先在服务器上跑：
+#   bash scripts/08-extract-nubia-apps.sh /path/to/super.img
+# 它会生成 prebuilts/nubia-apps/ 和 nubia-apps.mk，然后取消下面这行的注释：
+#
+# include $(LOCAL_PATH)/nubia-apps.mk
+#
+# 建议：首版先不启，确认能开机之后再回注。否则"开不了机"和"App 崩"会混在一起查。

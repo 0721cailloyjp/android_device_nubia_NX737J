@@ -155,6 +155,47 @@ AOSP 不读这些，理论上不影响开机；万一开机异常，把它设成
 
 ---
 
+### 2.5.1 system 侧的努比亚 App（会丢，可回注）
+
+换 system 分区会丢掉原厂装在 system 里的努比亚 App。实测清单：
+
+| APK | 用途 |
+|---|---|
+| `NBAccount.apk` | 努比亚账号 |
+| `NBUserCenter.apk` | 用户中心 |
+| `zteaccount_mfv.apk` | 账号框架（mfv = mifavor） |
+| `Nfc_st.apk` | NFC |
+| `CameraMind.apk` | 相机 |
+| `CameraExtensionsProxy.apk` | 相机扩展 |
+| `RomFixCameraCompat.apk` | 相机兼容修正 |
+
+（对照：`MiuiSystemUI.apk` / `Joyose.apk` 是小米的，不用管）
+
+**移植包作者特意把这批留在 system 里**，说明摘掉会出问题。回注成本很低：
+
+```bash
+# 在服务器上，super.img 先传上去
+bash scripts/08-extract-nubia-apps.sh /path/to/super.img
+```
+
+它会：
+1. 从 LP 元数据定位 system 分区并 dd 出来
+2. `fsck.erofs --extract` 解包
+3. 按名单找出那 7 个 APK + 相关 privapp-permissions XML
+4. 拷到 `device/nubia/NX737J/prebuilts/nubia-apps/`
+5. 生成 `nubia-apps.mk`（PRODUCT_COPY_FILES 规则）
+
+然后用 `device.mk` 末尾已留好的开关启用：
+
+```make
+include $(LOCAL_PATH)/nubia-apps.mk
+```
+
+**建议顺序：首版先不启**，确认能开机之后再回注。否则"开不了机"和"App 崩"两个问题
+会混在一起，很难二分定位。
+
+---
+
 ## 3. 阶段 C：降配打包下载
 
 **控制台：关机（不收费）→ 调整配置 → 8核16G → 开机**
