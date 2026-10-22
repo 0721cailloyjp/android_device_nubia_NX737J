@@ -74,16 +74,55 @@ chown -R "${BUILD_USER}:${BUILD_USER}" "${DATA_MNT}"
 log "步骤 2/6：安装构建依赖"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
+# AOSP 官方依赖集 + EROFS/AVB 相关工具。分两批装：
+# 第一批是硬需求（缺了必失败），第二批尽力而为（缺了只是某些可选步骤不可用）。
 apt-get install -y -qq \
-    git curl wget zip unzip tar xz-utils zstd lz4 \
-    python3 python3-pip python-is-python3 \
-    openjdk-17-jdk-headless \
-    build-essential bc bison flex \
-    libssl-dev libelf-dev libncurses-dev \
-    rsync tmux e2fsprogs util-linux \
-    erofs-utils \
+    git curl wget zip unzip tar xz-utils zstd lz4 lzop \
+    python3 python3-pip python-is-python3 python3-venv \
+    build-essential bc bison flex g++-multilib gcc-multilib \
+    libssl-dev libelf-dev libncurses-dev lib32z1-dev lib32ncurses-dev \
+    libxml2-utils xsltproc imagemagick device-tree-compiler \
+    rsync tmux e2fsprogs util-linux ccache \
+    erofs-utils android-sdk-libsparse-utils \
     >/dev/null
+
+# 第二批：可选工具，装不上不阻断
+apt-get install -y -qq squashfs-tools pngcrush schedtool liblz4-tool \
+    >/dev/null 2>&1 || warn "部分可选工具未装上（不影响主流程）"
+
+# JDK：Android 17 时代 AOSP 自带 prebuilts/jdk，系统 JDK 只用于 bootstrap。
+# 24.04 默认 21，22.04 默认 17 —— 两个都尝试，谁成功都能编。
+if apt-get install -y -qq openjdk-21-jdk-headless >/dev/null 2>&1; then
+    log "JDK 21 已装"
+elif apt-get install -y -qq openjdk-17-jdk-headless >/dev/null 2>&1; then
+    log "JDK 17 已装（21 不可用）"
+else
+    warn "系统 JDK 没装上。AOSP 自带 prebuilts/jdk 通常够用，但 envsetup 可能报 java 找不到"
+fi
 log "依赖装完"
+
+# ── erofs-utils 版本检查 ────────────────────────────────────────────────────
+# build_image.py 生成 EROFS 镜像时会用 mkfs.erofs 的这些参数：
+#   -b / --mount-point / --product-out / --fs-config-file / --file-contexts
+#   -T / -U / --block-list-file          ← 1.4 起支持
+#   -C（pcluster）/ -E dedupe / --chunksize  ← 需要 1.6+
+# Ubuntu 22.04 自带 1.4，如果设备树里设了 erofs_pcluster_size 之类就会
+# 报 "unknown option -C"，白烧编译时间。所以这里先查。
+EROFS_VER="$(mkfs.erofs --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+' | head -1)"
+if [[ -z "${EROFS_VER}" ]]; then
+    warn "mkfs.erofs 不存在（erofs-utils 没装上？）"
+else
+    log "mkfs.erofs 版本 ${EROFS_VER}"
+    MAJ="${EROFS_VER%%.*}"; MIN="${EROFS_VER##*.}"
+    if (( MAJ == 0 )) || (( MAJ == 1 && MIN < 6 )); then
+        warn "erofs-utils ${EROFS_VER} 偏老（< 1.6）。"
+        warn "若编译时报 'unknown option -C' / '--chunksize'，先升级："
+        warn "  apt install -y liblz4-dev libzstd-dev libselinux1-dev uuid-dev libtool automake autoconf pkg-config"
+        warn "  git clone --depth=1 https://github.com/erofs/erofs-utils && cd erofs-utils"
+        warn "  ./autogen.sh && ./configure && make -j\$(nproc) && make install && ldconfig"
+        warn "推荐直接用 Ubuntu 24.04（自带 1.7，无需折腾）"
+    fi
+fi
 
 # repo 工具：优先 apt，没有就用 TUNA 镜像的
 if ! command -v repo >/dev/null 2>&1; then

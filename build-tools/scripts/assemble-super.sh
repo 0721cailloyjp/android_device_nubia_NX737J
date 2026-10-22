@@ -157,16 +157,18 @@ done
 log "完成：${OUT}  ($(stat -c%s "${OUT}") B)"
 cat <<'EOF'
 
-下一步：关掉 vbmeta 的 AVB 校验再刷
-  python3 - <<'PY'
-  d = bytearray(open('vbmeta.img','rb').read())
-  d[12:16] = b'\x02\x00\x00\x00'      # disable verification + verity
-  open('vbmeta_patched.img','wb').write(d)
-  PY
+下一步：关掉 AVB 校验再刷（用配套脚本，别手改字节）
 
-刷写时只动：
-  super.img              -> label "super"
-  vbmeta_patched.img     -> vbmeta_a / vbmeta_b
+  python3 scripts/patch-vbmeta.py \
+      Firmware/vbmeta_system.img Firmware/vbmeta.img --out-dir patched/
+
+  ⚠️ flags 在 offset 120（大端 u32），不是网上说的 offset 12。
+     offset 12 是 authentication_data_block_size，改那里直接刷坏。
+
+刷写顺序：
+  1. 先刷 vbmeta_system  -> vbmeta_system_a / vbmeta_system_b
+  2. 最后刷 vbmeta       -> vbmeta_a / vbmeta_b
+  3. super.img           -> label "super"
 
 绝对不要碰：
   vendor / vendor_dlkm / odm / system_dlkm 的源文件（已在 super 里原样保留）

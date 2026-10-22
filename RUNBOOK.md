@@ -24,11 +24,21 @@ git init && git add -A && git commit -m "NX737J bootstrap device tree"
 | 项 | 值 |
 |---|---|
 | 规格 | **8核16G**（¥1.89/h） |
-| 镜像 | Ubuntu 22.04 LTS 64 位 |
+| 镜像 | **Ubuntu 24.04 LTS** 64 位（不要 22.04，见下方说明） |
 | 系统盘 | 50G 通用型 SSD |
 | **数据盘** | **500G 通用型 SSD** |
 | 公网 | 按使用流量，带宽 100M |
 | 安全组 | 放行 22 |
+
+> **为什么必须 24.04 而不是 22.04**
+>
+> 我们的设备树设了 `BOARD_*_FILE_SYSTEM_TYPE := erofs`，build_image.py 会用
+> `mkfs.erofs` 生成镜像。它可能带 `-C`（pcluster）或 `--chunksize` 参数，
+> **这些需要 erofs-utils ≥ 1.6**。
+> Ubuntu 22.04 自带 **1.4**，会在编译最后阶段报 `unknown option -C`，
+> 前面的钱白烧。24.04 自带 1.7，直接可用。
+>
+> `00-prep.sh` 会检查版本并提前告警。
 
 ```bash
 # 本地

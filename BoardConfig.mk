@@ -70,6 +70,11 @@ TARGET_KERNEL_ARCH := arm64
 TARGET_KERNEL_CONFIG := gki_defconfig
 TARGET_PREBUILT_KERNEL := $(DEVICE_PATH)/prebuilts/Image
 TARGET_FORCE_PREBUILT_KERNEL := true
+# vendor/lineage/config/BoardConfigKernel.mk 会从 TARGET_KERNEL_SOURCE/Makefile
+# 里 grep VERSION/PATCHLEVEL 来推 TARGET_KERNEL_VERSION。我们没有内核源码，
+# 那个推导结果会是空值（进而算出 KERNEL_PATH=kernel/platform/kernel-.）。
+# 该文件第 33-35 行的注释明确写了：预编译内核的场景应在设备树里手工覆盖。
+TARGET_KERNEL_VERSION := 6.6
 
 # ── Display (6.85" 2688x1216 BOE AMOLED, 144 Hz, under-display camera) ─────
 TARGET_SCREEN_DENSITY := 480
