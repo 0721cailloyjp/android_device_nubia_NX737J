@@ -1,0 +1,13 @@
+# nubia Z70S Ultra (NX737J) system props — bootstrap
+#
+# Deliberately minimal, matching the proven NX789J tree (which is literally
+# this one line). Every extra property is a chance to break first boot.
+#
+# Screen density / cutout / refresh rate all come from:
+#   - TARGET_SCREEN_DENSITY in BoardConfig.mk (480)
+#   - the stock vendor overlays (RRO) that ride along in the vendor partition
+#   - the overlay/ dir in this tree
+#
+# Add device tuning ONLY after the first build boots.
+
+ro.zygote=zygote64

@@ -1,0 +1,12 @@
+# init.nx737j.rc — nubia Z70S Ultra (NX737J)
+#
+# Intentionally inert. The stock vendor ramdisk brings up ALL hardware; this
+# file exists only as a hook for later device-specific tweaks.
+#
+# Do NOT put `setprop ro.*` here — ro properties are fixed at build time and
+# the write silently fails. Put them in system.prop instead.
+# Do NOT redefine any service the stock vendor already declares — that is a
+# guaranteed boot hang.
+
+on property:sys.boot_completed=1
+    # placeholder for post-boot device tweaks
