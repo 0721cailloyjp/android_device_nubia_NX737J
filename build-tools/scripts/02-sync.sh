@@ -45,19 +45,24 @@ mkdir -p .repo/local_manifests
 cp -f "${REPO_ROOT}/local_manifests/nx737j.xml" .repo/local_manifests/
 
 # ── 设备树 ──────────────────────────────────────────────────────────────────
-if [[ ! -d device/nubia/NX737J/.git ]]; then
-    log "克隆设备树"
+# 设备树已在 GitHub（0721cailloyjp/android_device_nubia_NX737J），
+# local_manifests 里有对应 project 条目，repo sync 会自己拉。
+# 这里只处理"manifest 里被注释掉"和"本地有 git 仓库要覆盖"两种旁路情况。
+if [[ -d device/nubia/NX737J/.git ]]; then
+    log "设备树已存在（repo sync 会更新它）"
+elif grep -q 'device/nubia/NX737J' .repo/local_manifests/nx737j.xml 2>/dev/null \
+     && ! grep -q '^\s*<!--.*device/nubia/NX737J' .repo/local_manifests/nx737j.xml 2>/dev/null; then
+    log "设备树由 local_manifests 提供，repo sync 会拉"
     mkdir -p device/nubia
-    if [[ -d "${REPO_ROOT}/device-nubia-NX737J/.git" ]]; then
-        git clone "${REPO_ROOT}/device-nubia-NX737J" device/nubia/NX737J
-    else
-        echo "!! 本地没有 device tree git 仓库。"
-        echo "!! 先把它推到 GitHub，然后取消 local_manifests/nx737j.xml 里"
-        echo "!! device/nubia/NX737J 那行的注释，让 repo 自己拉。"
-        exit 1
-    fi
+elif [[ -d "${REPO_ROOT}/device-nubia-NX737J" ]]; then
+    log "manifest 未启用，从本地目录复制设备树"
+    mkdir -p device/nubia
+    cp -a "${REPO_ROOT}/device-nubia-NX737J" device/nubia/NX737J
 else
-    log "设备树已存在"
+    echo "!! 找不到设备树来源："
+    echo "!!   · local_manifests/nx737j.xml 里没有启用的 project 条目"
+    echo "!!   · 本地也没有 ${REPO_ROOT}/device-nubia-NX737J"
+    exit 1
 fi
 
 # ── sync（后台 + tmux，断开不中断）────────────────────────────────────────────
