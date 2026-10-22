@@ -173,26 +173,35 @@ AOSP 不读这些，理论上不影响开机；万一开机异常，把它设成
 
 **移植包作者特意把这批留在 system 里**，说明摘掉会出问题。回注成本很低：
 
+**两条路拿 APK，任选其一：**
+
 ```bash
-# 在服务器上，super.img 先传上去
+# 【快】直接从手机拉（几十 MB，几秒钟，本地跑）
+bash scripts/09-pull-nubia-apps.sh --list   # 先看找到什么
+bash scripts/09-pull-nubia-apps.sh          # 再拉
+
+# 【慢】从 super.img 解包（16 GB，服务器上跑）
 bash scripts/08-extract-nubia-apps.sh /path/to/super.img
 ```
 
-它会：
-1. 从 LP 元数据定位 system 分区并 dd 出来
-2. `fsck.erofs --extract` 解包
-3. 按名单找出那 7 个 APK + 相关 privapp-permissions XML
-4. 拷到 `device/nubia/NX737J/prebuilts/nubia-apps/`
-5. 生成 `nubia-apps.mk`（PRODUCT_COPY_FILES 规则）
+两个脚本都会产出：
+- `device/nubia/NX737J/prebuilts/nubia-apps/*.apk`（+ 相关 privapp-permissions XML）
+- `device/nubia/NX737J/nubia-apps.mk`（PRODUCT_COPY_FILES 规则）
 
-然后用 `device.mk` 末尾已留好的开关启用：
+`device.mk` 末尾已经写好了：
 
 ```make
-include $(LOCAL_PATH)/nubia-apps.mk
+-include $(LOCAL_PATH)/nubia-apps.mk
 ```
 
-**建议顺序：首版先不启**，确认能开机之后再回注。否则"开不了机"和"App 崩"两个问题
-会混在一起，很难二分定位。
+**带减号的 `-include`：文件不存在就静默跳过，不会编译失败。**
+所以只要产物在就自动带上；没有就编纯 AOSP。不需要手动改 device.mk。
+
+**流程**：跑完提取 → `python scripts/gh-push.py` 推 GitHub → 云端 sync 时自动拉到。
+
+⚠️ 如果某个 App 闪退，logcat 搜 `NoClassDefFoundError` / `NoSuchMethodError`，
+看是不是指向 `com.zte.mifavor.*`（努比亚自己的 framework）。那种 AOSP 补不了，
+把 `nubia-apps.mk` 里对应的 PRODUCT_COPY_FILES 行删掉即可，不影响其他 App。
 
 ---
 

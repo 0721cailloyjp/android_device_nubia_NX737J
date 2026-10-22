@@ -69,10 +69,14 @@ PRODUCT_SOONG_NAMESPACES += \
 #   NBAccount / NBUserCenter / zteaccount_mfv / Nfc_st /
 #   CameraMind / CameraExtensionsProxy / RomFixCameraCompat
 #
-# 想回注就先在服务器上跑：
-#   bash scripts/08-extract-nubia-apps.sh /path/to/super.img
-# 它会生成 prebuilts/nubia-apps/ 和 nubia-apps.mk，然后取消下面这行的注释：
+# 移植包作者在把 system 换成澎湃4之后仍然保留了这批 App，说明摘掉会出问题
+# （账号登录、NFC、相机扩展）。所以这里默认带上。
 #
-# include $(LOCAL_PATH)/nubia-apps.mk
+# 怎么拿到这些 APK（二选一，本地跑）：
+#   bash scripts/09-pull-nubia-apps.sh            ← 直接从手机 adb pull，最快（几十 MB）
+#   bash scripts/08-extract-nubia-apps.sh super.img  ← 从 super.img 解包（服务器上跑）
 #
-# 建议：首版先不启，确认能开机之后再回注。否则"开不了机"和"App 崩"会混在一起查。
+# 两个脚本都会生成 prebuilts/nubia-apps/ + nubia-apps.mk。
+# 下面用 -include（带减号）：文件不存在时静默跳过，不会编译失败。
+# 所以只要产物在，就自动生效；没有就编纯 AOSP。
+-include $(LOCAL_PATH)/nubia-apps.mk
