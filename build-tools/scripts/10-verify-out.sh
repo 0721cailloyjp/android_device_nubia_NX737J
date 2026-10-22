@@ -72,6 +72,11 @@ if [[ -f "$BP" ]]; then
         NX737J) pass "ro.product.device = NX737J" ;;
         *)      warn "ro.product.device = ${v:-<空>}" ;;
     esac
+    v=$(getprop_ ro.product.model)
+    case "$v" in
+        *Z70S*) pass "ro.product.model = $v" ;;
+        *)      warn "ro.product.model = ${v:-<空>}（预期含 Z70S Ultra）" ;;
+    esac
 else
     fail "没有 $BP（没编 systemimage？）"
 fi

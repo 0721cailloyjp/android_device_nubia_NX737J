@@ -72,29 +72,16 @@ vendor.zte.nook.modem-V2-ndk.so / vendor.zte.subsys-V1-ndk.so
 
 | | 是什么 | 现在从哪来 | 刷完我们的包之后 |
 |---|---|---|---|
-| **型号属性** | `ro.product.model=2410DPN6CC`、`ro.product.device=haotian`、`ro.product.brand=Xiaomi` | **移植包自带的**（system/product 就是小米 15 Pro 的 HyperOS） | **变成 `NX737J` / `nubia`** —— 由我们的 `lineage_NX737J.mk` 定义 |
+| **型号属性** | `ro.product.model=2410DPN6CC`、`ro.product.device=haotian`、`ro.product.brand=Xiaomi` | **移植包自带的**（system/product 就是小米 15 Pro 的 HyperOS） | **变成 `nubia Z70S Ultra` / `nubia`** —— 由我们的 `lineage_NX737J.mk` 定义 |
 | **设备显示名** | 设置里那个"设备名称"，用户可见；应用小尾巴也读它 | **用户自己在设置里改成 `mix7`**，存在 `persist.cc.device.name` | **清 data 后回到默认**，在设置里重改一次即可 |
 
 所以：**"应用小尾巴显示小米15Pro" 不是伪装，是移植包 build.prop 里的型号本来就是那个。**
-刷完之后小尾巴会自然变成 `nubia NX737J`，这不需要任何额外处理，也不需要"恢复伪装"。
+刷完之后小尾巴会自然变成 **`nubia Z70S Ultra`**（`ro.product.model` 直接设成了市场名，
+`ro.product.marketname` 也一起设了），不需要任何额外处理。
 
-**如果确实希望刷完仍显示成小米 15 Pro**（部分游戏的高帧白名单会看型号），
-可以把它烤进系统，比模块干净、不受清 data 影响：
-
-```make
-# device.mk 里加
-PRODUCT_BUILD_PROP_OVERRIDES += \
-    PRODUCT_MODEL=2410DPN6CC \
-    PRODUCT_DEVICE=haotian \
-    PRODUCT_BRAND=Xiaomi \
-    PRODUCT_MANUFACTURER=Xiaomi
-```
-
-代价：Play Integrity / 部分 DRM 的判定会受影响，而且以后排查问题时会分不清
-「这是真机行为还是伪装造成的」。
-
-**v1 建议不烤**：先让它老老实实显示 `nubia NX737J`。第一次开机要排查的变量已经够多，
-少一个伪装就少一个混淆项。等能开机、功能正常了，想加再加。
+> 为什么 model 不用 `NX737J`：NX737J 是开发代号，设置里和 App 小尾巴显示它会显得怪。
+> 真机 EXIF 实测市场名就是 "nubia Z70S Ultra"（`ro.vendor.feature.camera_zte_exif_model`）。
+> 所以 `PRODUCT_MODEL := nubia Z70S Ultra` + `ro.product.marketname=nubia Z70S Ultra`。
 
 ---
 

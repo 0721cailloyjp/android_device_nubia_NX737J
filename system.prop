@@ -12,6 +12,11 @@
 
 ro.zygote=zygote64
 
+# 设备可见名：设置「关于手机」里的市场名。
+# ro.product.model 已经由 lineage_NX737J.mk 的 PRODUCT_MODEL 设成 "nubia Z70S Ultra"，
+# 这里再补 marketname，两个都指到同一个名字，App 小尾巴和关于页不会打架。
+ro.product.marketname=nubia Z70S Ultra
+
 # VINTF 兼容性检查要读这条，**开不了机级别的重要**
 #
 # 开机时 system_server 会做一次 VINTF 检查：

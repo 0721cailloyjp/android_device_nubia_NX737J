@@ -19,20 +19,11 @@ PRODUCT_NAME := lineage_NX737J
 PRODUCT_DEVICE := NX737J
 PRODUCT_MANUFACTURER := nubia
 PRODUCT_BRAND := nubia
-PRODUCT_MODEL := NX737J
+# 型号用市场名，别用 NX737J 这种开发代号 —— 否则设置里、App 小尾巴都显得怪。
+# 真机 EXIF 实测就是 "nubia Z70S Ultra"（ro.vendor.feature.camera_zte_exif_model）。
+PRODUCT_MODEL := nubia Z70S Ultra
 
 PRODUCT_GMS_CLIENTID_BASE := android-zte
 
-# Stock identity overrides intentionally OMITTED for the bootstrap build.
-# NX789J sets BuildFingerprint/BuildDesc to match its stock RedMagicOS vendor.
-# We do not know NX737J's stock fingerprint yet, and a wrong one is worse than
-# none — AOSP then generates its own. Add these once you have read
-# `adb shell getprop ro.build.fingerprint` on the stock/HyperOS build.
-#
-# PRODUCT_BUILD_PROP_OVERRIDES += \
-#     BuildDesc="NX737J-user ..." \
-#     BuildFingerprint=nubia/NX737J/NX737J:15/.../...:user/release-keys" \
-#     DeviceName=NX737J \
-#     DeviceProduct=NX737J \
-#     SystemDevice=NX737J \
-#     SystemName=NX737J
+# ro.product.marketname 不是 build 自动生成的，手动补进 system.prop。
+# 其它身份（brand/manufacturer/device）在上面已经是对的，不用覆盖。
