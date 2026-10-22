@@ -84,7 +84,6 @@ declare -a NEED=(
     "system/app/zteaccount_mfv/zteaccount_mfv.apk"
     "system/priv-app/Wallet/Wallet.apk"
     "system/priv-app/WalletCore/WalletCore.apk"
-    "system/priv-app/WalletSupport/WalletSupport.apk"
     "system_ext/framework/vendor.zte.hardware.camera.transferclient.jar"
     "system_ext/etc/permissions/vendor.zte.hardware.camera.transferclient.xml"
     "system/etc/permissions/privapp_permissions_whitelist_com.zte.wallet.xml"
