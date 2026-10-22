@@ -184,19 +184,15 @@ BOARD_AVB_VBMETA_SYSTEM_ROLLBACK_INDEX_LOCATION := 2
 # ── LineageOS shared BoardConfig ────────────────────────────────────────────
 include vendor/lineage/config/BoardConfigLineage.mk
 
-# ── WiFi (qcwcn pattern, same as sm8750-common) ─────────────────────────────
-# ⚠️ 只保留「feature 开关」这类不会产生模块依赖的变量。
-# 下面这两行**刻意删掉**：
-#   BOARD_HOSTAPD_PRIVATE_LIB := lib_driver_cmd_$(BOARD_WLAN_DEVICE)
-#   BOARD_WPA_SUPPLICANT_PRIVATE_LIB := $(BOARD_HOSTAPD_PRIVATE_LIB)
-# 它们会让 wpa_supplicant / hostapd 把 lib_driver_cmd_qcwcn 当静态库依赖，
-# 而那个模块来自 hardware/qcom-caf/wlan —— 该仓库已从设备树移除（LineageOS 组织下
-# 拿不到）。留着就是 "module not found" 编译失败。
-# 代价：v1 的 WiFi 可能起不来（stock vendor 有驱动，但我们没有系统侧的
-# driver-cmd shim）。对「先开机」这个目标没影响，等开机后再补正确仓库。
+# ── WiFi (qcwcn pattern, aligned with OnePlus sm8750-common) ───────────────
+# lib_driver_cmd_qcwcn / libwifi-hal-qcom 由 hardware/qcom/wlan
+# （= LineageOS/android_hardware_qcom_wlan，manifest 自带）提供。
+# BOARD_WLAN_CHIP 不设 → 仓库根 Android.mk 走 legacy 分支，sm8750 官方树也是这么做的。
 BOARD_WLAN_DEVICE := qcwcn
 BOARD_HOSTAPD_DRIVER := NL80211
+BOARD_HOSTAPD_PRIVATE_LIB := lib_driver_cmd_$(BOARD_WLAN_DEVICE)
 BOARD_WPA_SUPPLICANT_DRIVER := $(BOARD_HOSTAPD_DRIVER)
+BOARD_WPA_SUPPLICANT_PRIVATE_LIB_EVENT := "ON"
 WIFI_DRIVER_STATE_CTRL_PARAM := "/dev/wlan"
 WIFI_DRIVER_STATE_OFF := "OFF"
 WIFI_DRIVER_STATE_ON := "ON"

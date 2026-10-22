@@ -68,8 +68,10 @@
                 remote=gh revision=lineage-24.0
 
     hardware/qcom-caf/wlan
-      已从 device.mk 移除依赖（该路径在 LineageOS 组织下 404）。
-      wifi 由 stock vendor 提供，第一次开机不依赖它。
+      ★ 之前这里写"404 已移除依赖"是错的（2026-10-23 更正）。
+      仓库 LineageOS/android_hardware_qcom_wlan 存在，且 PixelOS/LineageOS 的
+      manifest 自带（路径 hardware/qcom/wlan 与 hardware/qcom-caf/wlan 都指向它）。
+      设备树已经按官方 sm8750-common 恢复 WiFi 配置，不需要在这里加。
 
     vendor/nubia/NX737J
       不建 blobs 仓库，硬件层分区直接从 stock super.img 取。

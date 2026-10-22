@@ -678,7 +678,7 @@ bash scripts/07-capture-bootlog.sh     # 循环等 adb、抓 logcat + dmesg
 | system.prop | 没声明 | `TARGET_SYSTEM_PROP +=` |
 | 分区表 | 全缺 | 6 个分区大小 + super/group 配置 |
 | EROFS | 全缺 | 7 个 `BOARD_*_FILE_SYSTEM_TYPE := erofs` |
-| API level | `:= 36` | `35` + `BOARD_SHIPPING_API_LEVEL := 202404` |
+| API level | `:= 36` | `PRODUCT_SHIPPING_API_LEVEL := 35` + system.prop 写 `ro.board.api_level=202404` |
 | sepolicy | 空 | `TARGET_USES_PREBUILT_VENDOR_SEPOLICY` + qcom vndr include |
 | AVB | 无 | `--flags 3` |
 | 无效模块 | `PRODUCT_PACKAGES += init.nx737j.rc` | 已删（会直接编译失败） |
@@ -696,7 +696,7 @@ bash scripts/07-capture-bootlog.sh     # 循环等 adb、抓 logcat + dmesg
 |---|---|---|---|
 | `device/qcom/sepolicy_vndr/sm8750` | BoardConfig `include .../SEPolicy.mk` | **ROM 自带**（PixelOS/LineageOS 的 snippets/lineage.xml 都有，路径带 `/sm8750`） | 不进 local manifest；BoardConfig 改成条件包含，见下 |
 | `device/lineage/sepolicy` | BoardConfig `SYSTEM_EXT_PRIVATE_SEPOLICY_DIRS` | **ROM 自带**（snippets/lineage.xml） | 不进 local manifest |
-| `hardware/qcom-caf/wlan` | （已删除） | 在 LineageOS 组织下 **404** | 已从设备树删除依赖 |
+| `hardware/qcom/wlan` | device.mk `libwifi-hal-qcom` + BoardConfig `lib_driver_cmd_qcwcn` | **ROM 自带**（`LineageOS/android_hardware_qcom_wlan`，PixelOS/LineageOS 都引） | 不额外加；按官方 sm8750-common 恢复 WiFi 配置 |
 
 **local manifest 现在只剩一个项目：设备树本身。**
 
@@ -710,7 +710,10 @@ else ifneq ($(wildcard device/qcom/sepolicy_vndr/SEPolicy.mk),)
 endif
 ```
 
-wifi 第一次开机不依赖它（stock vendor 提供 HAL）。等能开机了再找正确仓库补。
+> WiFi 结论（2026-10-23 更正，之前"404"是查错了仓库名）：
+> `LineageOS/android_hardware_qcom_wlan` 提供 `libwifi-hal-qcom` / `libwifi-hal-ctrl` /
+> `lib_driver_cmd_qcwcn`。不设 `BOARD_WLAN_CHIP` 时走 legacy 分支（官方 sm8750 树同款做法），
+> 系统侧 shim + stock vendor 的驱动/HAL 一起构成完整 WiFi 栈。
 
 ### 7.3 已核实存在的依赖（api.github.com 实测，2026-10-23）
 

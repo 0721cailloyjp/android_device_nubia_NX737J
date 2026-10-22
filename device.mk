@@ -56,16 +56,20 @@ PRODUCT_PACKAGES += \
     fastbootd
 
 # ── WiFi system-side HAL glue ───────────────────────────────────────────────
-# DISABLED for the bootstrap build.
-# NX789J builds `libwifi-hal-qcom` from hardware/qcom-caf/wlan, but that path
-# does not exist in the LineageOS org (404 as of 2026-10) and is NOT in the
-# default PixelOS/LineageOS manifest. Keeping the dependency = guaranteed
-# "module not found" build failure.
+# 2026-10-23 更正：之前以为 hardware/qcom-caf/wlan 仓库不存在，其实存在 ——
+#   LineageOS/android_hardware_qcom_wlan 就在 PixelOS/LineageOS 的 manifest 里
+#   （路径 hardware/qcom/wlan 与 hardware/qcom-caf/wlan 都指向它）。
+# 它提供 libwifi-hal-qcom / libwifi-hal-ctrl / lib_driver_cmd_qcwcn。
 #
-# WiFi on this hybrid comes from the STOCK vendor partition anyway, so it is
-# not needed for first boot. Re-enable together with the correct repo once
-# you have a booting build and want to chase wifi.
-# PRODUCT_PACKAGES += libwifi-hal-qcom
+# 配置完全对齐官方 OnePlus sm8750-common（同 SoC，LineageOS 24.0）：
+PRODUCT_PACKAGES += \
+    WifiResTarget \
+    android.hardware.wifi-service \
+    hostapd \
+    libwifi-hal-ctrl \
+    libwifi-hal-qcom \
+    wpa_supplicant \
+    wpa_supplicant.conf
 
 # ── Overlays ────────────────────────────────────────────────────────────────
 # DISABLED for the bootstrap build. An overlay that names a resource which
@@ -79,10 +83,13 @@ PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/rootdir/etc/init/init.nx737j.rc:$(TARGET_COPY_OUT_SYSTEM)/etc/init/init.nx737j.rc
 
 # ── Soong namespaces ────────────────────────────────────────────────────────
-# Only the device tree itself. hardware/qcom-caf/wlan is intentionally dropped
-# (repo does not exist at that path), so no qcwcn namespace here.
+# 设备树自身 + qcom wlan HAL（libwifi-hal-qcom 所在的 namespace）。
+# 注意：官方 sm8750-common 还会加 qcom/opensource/wlan/* 等 namespace，
+# 那些是给「从源码编译 wlan 内核驱动」用的 —— 我们保留 stock vendor_dlkm，
+# 驱动已经在里面了，所以不加。
 PRODUCT_SOONG_NAMESPACES += \
-    $(LOCAL_PATH)
+    $(LOCAL_PATH) \
+    hardware/qcom/wlan
 
 # ── 努比亚组件回注（已实测确定清单）────────────────────────────────────────
 # 换掉 /system 和 /system_ext 会丢厂商 App。**清单不能靠目录名猜**，必须逐个解析 dex。
