@@ -117,27 +117,52 @@ JOBS=8 bash scripts/03-build.sh
 
 ---
 
-## 2.5 保留 Z70S 的原厂 product（默认开启）
+## 2.5 保留原厂 product（默认开启）—— 理由已更正
 
-扫 NX737J 的 super.img 实测，努比亚专有组件分布如下：
+> ⚠️ **这一节之前写错过，2026-10-22 在真机上重新核对后重写。**
+> 旧版本说「相机算法三件套 bokeh / 图像分割 / 视频分割全在 product 里」，
+> 那是扫 **Z70S 原厂包** 得到的结论，不适用于 **澎湃4 移植包**。
+> 移植包已经把 product 换成了小米的，真机上验证如下。
 
-| 分区 | 内容 |
+### 真机实测（当前跑澎湃4 移植包的 Z70S）
+
+| 检查项 | 结果 |
 |---|---|
-| **system** | `com.zte.wallet`（钱包）、`com.zte.mifavor`（NeoVision 框架）、`cn.nubia.identity`、`cn.nubia.accounts`、`com.zte.cloud`、`com.zte.NFC_SIMULATION`、`cn.nubia.neopush` |
-| **system_ext** | `cn.nubia.identity` |
-| **product** | `cn.nubia.identity`、`cn.nubia.touping`（投屏）、`cn.nubia.provider.deviceid`、`cn.nubia.applearning`、**`com.zte.camera.SpecialTypesProvider`**、**`com.zte.bokeh`**、**`com.zte.imagesegmentation`**、**`com.zte.videosegmentation`**、`cn.nubia.camera.tools` |
+| `/product` 包数量 | 152 个，全是小米的（`GmsCore`、`MIUIBrowser`、`MIUIAod`、`MISettings` …） |
+| `/product/lib64` 里 zte/nubia 库 | **0 个**（共 46 个文件，无一是 zte） |
+| `/product/etc/permissions` 里 zte/nubia | **0 个** |
+| 全机 `com.zte.*` / `cn.nubia.*` 包 | 只有 5 个，**都在 /system 或 /system_ext**（已回注，见 2.5.1） |
 
-**相机算法三件套（bokeh / 图像分割 / 视频分割）全在 product 里。**
-换成 AOSP 的 product（几乎空镜像）= 人像虚化、AI 抠像、视频分割直接没了。
+结论：**product 里没有努比亚的东西**，之前那个理由不成立。
 
-而 AOSP 侧基本不往 product 放东西，替换它收益接近零。
+### 但仍然要保留 product，真正的理由是这三个
 
-### 所以默认不编 product
+| 理由 | 具体内容 | 丢了会怎样 |
+|---|---|---|
+| **① IMS / VoLTE / eSIM 的 Java 层** | `/product/etc/permissions/` 里 30 个 XML，含 `qti_telephony_hidl_wrapper_prd.xml`、`qti_telephony_utils_prd.xml`、`vendor.qti.hardware.data.connection*.xml`、`telephony_product_privapp-permissions-qti.xml`、`lpa.xml`、`UimGba*.xml` | AOSP 的 product 没有这些。能打电话，但 **VoLTE / 5G 通话 / eSIM 大概率废** |
+| **② VINTF 片段** | `/product/etc/vintf/compatibility_matrix.xml` + `/product/etc/vintf/manifest/` + `touch_framework_compatibility_matrix.xml` | 框架兼容性矩阵少一块，VINTF 组合结果与现在不同，风险不可控 |
+| **③ 设备配置 RRO** | `/product/overlay/` 71 个，含 `GestureLineOverlay`、`NavigationBarModeGestural`、`DevicesAndroidOverlay` 等 | 导航栏 / 手势条 / 显示参数可能不对 |
+
+**顺带省钱**：product 有 4.2 GB，不编 = 不传 = 不下，对 ¥25 预算是实打实的节省。
+
+### 保留它的代价（已知、可接受）
+
+product 里那堆 MIUI App 在 AOSP 框架下会崩（缺 `miui.*` 类）。
+它们的特权权限请求靠 `system.prop` 里这行降级，**不会阻塞开机**：
+
+```properties
+ro.control_privapp_permissions=log
+```
+
+桌面不受影响：`com.miui.home` 装在 **/data/app**（用户安装的），清 data 后自然消失，
+开机后是 AOSP 的 Launcher3 接管。
+
+### 开关
 
 | 开关 | 行为 |
 |---|---|
-| `KEEP_STOCK_PRODUCT=1`（**默认**） | 只编 `system.img` + `system_ext.img`，product 保持原厂 |
-| `KEEP_STOCK_PRODUCT=0` | 三个都编（完全净化时用，会丢上面那些组件） |
+| `KEEP_STOCK_PRODUCT=1`（**默认**） | 只编 `system.img` + `system_ext.img`，product 保持原样 |
+| `KEEP_STOCK_PRODUCT=0` | 三个都编（完全净化时用，会丢上面 ①②③） |
 
 三个脚本都认这个开关：`03-build.sh` / `04-pack.sh` / `assemble-super.sh`。
 
@@ -145,13 +170,9 @@ JOBS=8 bash scripts/03-build.sh
 # 默认就是保留
 bash scripts/03-build.sh
 
-# 想全替换
+# 想全替换（v2 再考虑）
 KEEP_STOCK_PRODUCT=0 bash scripts/03-build.sh
 ```
-
-**副作用**：原厂 product 的 `build.prop` 是小米的，会带一些 `ro.miui.*` / 产品身份属性。
-AOSP 不读这些，理论上不影响开机；万一开机异常，把它设成 0 重编一次
-（但重编要 ¥9~15，所以先试默认路径）。
 
 ---
 
@@ -172,8 +193,13 @@ AOSP 不读这些，理论上不影响开机；万一开机异常，把它设成
 | `zteaccount_mfv.apk` | `org.zx.AuthComp` | 687 + 509 + 65 | 统一认证（登录依赖它） |
 | `Wallet.apk` | `com.zte.wallet` | 1512 + 41 | ZTE 钱包（priv-app） |
 | `WalletCore.apk` | `com.zte.wallet.core` | 11 | 钱包核心（priv-app） |
-| `WalletSupport.apk` | `com.zte.wallet.support` | 522 | 钱包支撑（priv-app） |
 | `vendor.zte.hardware.camera.transferclient.jar` | — | — | 相机流转的 Java 层 API |
+
+> `WalletSupport.apk`（`com.zte.wallet.support`，47 MB）**故意不带**：
+> 缺 6 个 `com.zte.aimodel.*` / `com.zte.ctsutils.CtsUtils` / `com.zte.feature.Feature`，
+> 核心 AI 能力在 AOSP 上跑不起来；而且 47 MB 单个 blob 过不了 GitHub Git Data API
+> （实测 `HTTP 422 input was too large to process`，JSON base64 的实际上限 40~50 MB）。
+> 要加就等真正需要时走 Release 资产（单文件 2 GB）。
 
 **剔除（并写明为什么）**
 
@@ -189,7 +215,6 @@ AOSP 不读这些，理论上不影响开机；万一开机异常，把它设成
 | APK | 缺什么 |
 |---|---|
 | `Wallet` | `com.zte.feature.Feature` |
-| `WalletSupport` | `com.zte.aimodel.*`（4 个）、`com.zte.ctsutils.CtsUtils`、`com.zte.feature.Feature` |
 | `zteaccount_mfv` | `com.zte.aimodel.*`（4 个） |
 
 这几个类在你**现在的澎湃4 移植包里同样不存在**（我们扫过 `/system`、`/system_ext`，
@@ -237,6 +262,64 @@ bash scripts/08-extract-nubia-apps.sh /path/to/super.img
 ⚠️ 如果某个 App 闪退，logcat 搜 `NoClassDefFoundError` / `NoSuchMethodError`，
 对照上面「已知缺失的类」那张表——已经在表里的就是移植包也补不了的东西，
 把 `nubia-apps.mk` 里对应的 PRODUCT_COPY_FILES 行删掉即可，不影响其他 App、也不影响开机。
+
+---
+
+### 2.6 A17 system 配 A15 vendor：为什么能成立，以及我们绝不能搞丢的一条属性
+
+这是整个方案成立的前提，值得单独讲清楚。
+
+**先说结论**：这套组合不是我们硬凑的，是小米官方出货状态。MIX 7 实机同时满足
+
+```
+ro.build.fingerprint     = ... :17/CP2A.260605.016/...     ← system 是 A17
+ro.odm.build.fingerprint = ... :15/AQ3A.250226.002/...     ← odm/vendor 是 A15
+ro.board.api_level       = 202404
+ro.vndk.version          = （空）
+ro.product.first_api_level = 35
+```
+
+**`ro.vndk.version` 是空的，这一点很关键。** 说明这台机器根本不走 VNDK 机制，
+vendor 是靠 LLNDK 的稳定 ABI + vendor snapshot 跟 system 对接的。
+正因为不锁 VNDK 版本，A17 的 system 才能配 A15 的 vendor —— 否则
+vendor 会要求 `com.android.vndk.v35`，而 A17 只提供 v37，直接就起不来。
+
+所以我们的设备树**不能设** `BOARD_VNDK_VERSION`（设了就会往 build.prop 里写
+`ro.vndk.version`，等于把 VNDK 机制重新打开）。目前树里没设，保持原样。
+
+**必须显式保住的是 `ro.board.api_level`。** 开机时 system_server 会做 VINTF 检查：
+
+```
+厂商 manifest 的 target-level  <=  ro.board.api_level
+```
+
+`ro.board.api_level` 缺失时的回退顺序是 `ro.vndk.version` → `ro.build.version.sdk`。
+这台机器前两个都拿不到，于是一路退到 sdk=37，去和厂商 manifest 的 `202404` 比 ——
+202404 > 37，**判为不兼容，直接起不来**。
+
+我们只编 system 不编 vendor，所以这条已经显式写进 `system.prop`：
+
+```properties
+ro.board.api_level=202404
+ro.board.first_api_level=202404
+```
+
+值与原厂完全一致，不改变任何行为，只是补上兜底。
+
+**编译完会自动校验**（`scripts/03-build.sh` 末尾会调 `10-verify-out.sh`）：
+
+| 检查项 | 判据 |
+|---|---|
+| `ro.board.api_level` | 必须 = 202404，缺失直接 FAIL |
+| `ro.vndk.version` | 必须为空，有值只给警告 |
+| `ro.product.first_api_level` | 必须 = 35 |
+| 努比亚组件 | 9 个文件逐个检查是否真的进了镜像 |
+| `<library>` 指向 | XML 里 `file=` 指的 jar 必须真实存在 |
+| 不该出现的东西 | `Nfc_st` / `CameraMind` / miui jar 出现就报警 |
+| 镜像大小 | 三个 img 是否超出各自的 super 槽位 |
+| 文件系统 | 魔数是否为 erofs（`e2e1f5e0`） |
+
+自检有 FAIL 时 `03-build.sh` 会以退出码 9 停下，不往下进打包 —— 避免带着病刷机。
 
 ---
 
@@ -363,6 +446,19 @@ bash scripts/06-cleanup-local.sh
 ---
 
 ## 6. 刷回前先量尺寸
+
+> ⚠️ **刷机前必须清 data，这条不是可选项。**
+>
+> 换掉 system / system_ext 之后，`/data` 里还留着旧系统的 dex 缓存、ART 镜像、
+> 以及一批「包名还在但签名全变了」的记录。不清 data 的典型表现是
+> 黑屏、反复重启、或卡在开机动画——看起来像"编译失败"，其实是数据层不兼容。
+>
+> 而且你的机器上 **`com.miui.home`（小米桌面）是装在 `/data/app` 的用户应用**，
+> 不清 data 的话它会继续被当默认桌面，在 AOSP 框架下必然崩 → 开机后就是黑屏。
+>
+> 清 data 顺带把它一起清掉，开机后是 AOSP 的 Launcher3。
+>
+> 所以：**第一次刷一定 `fastboot -w`（或恢复出厂）**，别抱侥幸。
 
 | 槽位 | 上限 |
 |---|---|
