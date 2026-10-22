@@ -77,8 +77,13 @@ vendor.zte.nook.modem-V2-ndk.so / vendor.zte.subsys-V1-ndk.so
 | `/vendor/build.prop` 里改的 | 保留（vendor 不动）—— 伪装一般不会写这儿 |
 
 也就是说刷完 PixelOS、清完 data，设备会恢复真实身份 `nubia NX737J`。
-好消息是 `com.cc.setting` 本身我们还留着（见 2.5.1），装上 KernelSU 管理器、
-给它 root 之后，**在原 App 里重新设一次**就行，不用另找模块。
+
+> ⚠️ **但「在原 App 里重设一次就行」这话我说早了。**
+> `com.cc.setting` 只负责**写** `persist.cc.device.name`，而 `ro.product.*` 是只读属性、
+> 开机后改不了，所以必然还有另一环在开机早期读取这个 persist 值并套用。
+> 那一环大概率是 `/data/adb` 里的 root 模块（该目录 400 拒绝访问，看不到内容）。
+> 也就是说**伪装要恢复，可能得同时找回那个模块**，光装 `com.cc.setting` 不够。
+> 结论：把这次伪装当成"刷完就没了"来预期，别指望它能自动回来。
 
 **如果想让它稳定存在**，可以烤进系统里（比模块干净，不受清 data 影响）：
 
