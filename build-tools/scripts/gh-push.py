@@ -131,6 +131,15 @@ def build_file_map(root: str, device_dir: str):
             if os.path.isfile(p):
                 add(p, "build-tools/local_manifests/" + fn)
 
+    ref = os.path.join(root, "reference")
+    if os.path.isdir(ref):
+        for dp, dn, fns in os.walk(ref):
+            dn[:] = [d for d in dn if d not in skip_dirs]
+            for fn in fns:
+                pp = os.path.join(dp, fn)
+                rel = os.path.relpath(pp, root).replace("\\", "/")
+                add(pp, rel)
+
     for doc in ("README.md", "RUNBOOK.md"):
         p = os.path.join(root, doc)
         if os.path.isfile(p):
