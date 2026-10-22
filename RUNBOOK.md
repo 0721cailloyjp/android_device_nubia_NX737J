@@ -99,12 +99,10 @@ cd /root/nx737j-pixelos
 bash scripts/cost.sh reset          # 换机器后重置起点
 
 tmux new -s build
-bash scripts/03-build.sh
-tmux wait-for build-done
-
-# 看进度
-tail -f /data/build.log
-bash scripts/cost.sh
+bash scripts/01-preflight.sh        # 2 分钟体检，不过就别编
+bash scripts/03-build.sh            # 前台跑，日志同时进 /data/build.log
+# 中途可按 Ctrl-b 再按 d 退出，编译继续
+# 回来： tmux attach -t build
 ```
 
 **16核32G 上编译约 100~160 分钟。**
@@ -113,8 +111,9 @@ bash scripts/cost.sh
 
 ```bash
 JOBS=8 bash scripts/03-build.sh
-tmux wait-for build-done
 ```
+
+脚本会自己判断失败原因：OOM / 缺模块 / 缺 .mk，并给出对应处置。
 
 ---
 
