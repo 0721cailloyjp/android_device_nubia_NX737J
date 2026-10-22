@@ -8,11 +8,16 @@
 ## 0. 设备身份：确认是 Z70S Ultra（2026-10-22 实测留档）
 
 `ro.product.brand/model/device` 读出来是 `Xiaomi / 2410DPN6CC / haotian`，
-**这不代表硬件是小米** —— 这是**用户自己用机型伪装改的**（设备名改成 mix7，
-应用识别出来的小尾巴是"小米 15 Pro"；`haotian` 正是小米 15 Pro 的代号）。
+**这不代表硬件是小米** —— 这是**移植包自带的身份属性**。
 
-> 归因更正：我一开始以为是移植包保留了源 ROM 的身份属性，其实是机型伪装模块/属性改写干的。
-> 两种解释在现象上一样，但结论不同：**这些伪装值不属于硬件，也不该被我们的构建继承。**
+原因很直接：移植包的 system / product / system_ext 就是**小米 15 Pro（代号 haotian）的 HyperOS**，
+那三套 build.prop 里写的就是 `haotian` / `2410DPN6CC` / `Xiaomi`，所以身份属性自然跟着来。
+（不是移植者刻意伪装，也不是用户改的 —— 用户改的只是「设备名」这个用户可见的显示名。）
+
+> 归因修正记录：这个问题我错过两次。
+> 第一次以为是"移植包保留源 ROM 身份"（方向对但没确认），
+> 第二次听用户说"改了设备名叫 mix7"就误判成机型伪装模块在改 `ro.product.*`（错）。
+> 事实是：**型号属性来自移植包的 HyperOS base，用户只改了设备显示名。** 两件事要分开看。
 
 真正的证据在硬件层：
 
@@ -63,29 +68,18 @@ vendor.zte.nook.modem-V2-ndk.so / vendor.zte.subsys-V1-ndk.so
 真身是 `/vendor/lib64/vendor.zte.aimodel-V1-ndk.so`。vendor 里没有对应的 `-java.jar`，
 所以 Java 层那几个类确实没人提供 —— 这与现有移植包的状态一致，不是我们引入的问题。
 
-### 机型伪装（mix7 / 小米15Pro）刷完会消失，需要先决定
+### 两件容易混的事：型号属性 vs 设备显示名
 
-**已经查清它是怎么实现的**：由 `com.cc.setting`（移植者的高级设置）写入
-`persist.cc.device.name` 这个持久化属性，再由某个开机环节套用。
-`persist.*` 属性存放在 `/data/property/`，**清 data 就没了**。
+| | 是什么 | 现在从哪来 | 刷完我们的包之后 |
+|---|---|---|---|
+| **型号属性** | `ro.product.model=2410DPN6CC`、`ro.product.device=haotian`、`ro.product.brand=Xiaomi` | **移植包自带的**（system/product 就是小米 15 Pro 的 HyperOS） | **变成 `NX737J` / `nubia`** —— 由我们的 `lineage_NX737J.mk` 定义 |
+| **设备显示名** | 设置里那个"设备名称"，用户可见；应用小尾巴也读它 | **用户自己在设置里改成 `mix7`**，存在 `persist.cc.device.name` | **清 data 后回到默认**，在设置里重改一次即可 |
 
-| 实现方式 | 刷机后 |
-|---|---|
-| `persist.cc.device.name`（com.cc.setting 写的）← **当前这台就是这种** | **消失**（`/data/property` 被清） |
-| `/data/adb/modules/*` 的 Magisk/KernelSU 模块（resetprop） | **消失**（见第 6 节，必须清 data） |
-| `/system/build.prop` 里改的 | **消失**（我们把 system 整个换掉） |
-| `/vendor/build.prop` 里改的 | 保留（vendor 不动）—— 伪装一般不会写这儿 |
+所以：**"应用小尾巴显示小米15Pro" 不是伪装，是移植包 build.prop 里的型号本来就是那个。**
+刷完之后小尾巴会自然变成 `nubia NX737J`，这不需要任何额外处理，也不需要"恢复伪装"。
 
-也就是说刷完 PixelOS、清完 data，设备会恢复真实身份 `nubia NX737J`。
-
-> ⚠️ **但「在原 App 里重设一次就行」这话我说早了。**
-> `com.cc.setting` 只负责**写** `persist.cc.device.name`，而 `ro.product.*` 是只读属性、
-> 开机后改不了，所以必然还有另一环在开机早期读取这个 persist 值并套用。
-> 那一环大概率是 `/data/adb` 里的 root 模块（该目录 400 拒绝访问，看不到内容）。
-> 也就是说**伪装要恢复，可能得同时找回那个模块**，光装 `com.cc.setting` 不够。
-> 结论：把这次伪装当成"刷完就没了"来预期，别指望它能自动回来。
-
-**如果想让它稳定存在**，可以烤进系统里（比模块干净，不受清 data 影响）：
+**如果确实希望刷完仍显示成小米 15 Pro**（部分游戏的高帧白名单会看型号），
+可以把它烤进系统，比模块干净、不受清 data 影响：
 
 ```make
 # device.mk 里加
@@ -96,9 +90,11 @@ PRODUCT_BUILD_PROP_OVERRIDES += \
     PRODUCT_MANUFACTURER=Xiaomi
 ```
 
-代价：`ro.product.model` 之类会真的变成小米，副作用是 Play Integrity / 部分 DRM 判定、
-以及「这到底是不是 Z70S」以后自己都得记着。**v1 建议先不伪装**，能开机、功能正常之后
-再决定要不要加 —— 加了出问题很难判断是编译问题还是伪装问题。
+代价：Play Integrity / 部分 DRM 的判定会受影响，而且以后排查问题时会分不清
+「这是真机行为还是伪装造成的」。
+
+**v1 建议不烤**：先让它老老实实显示 `nubia NX737J`。第一次开机要排查的变量已经够多，
+少一个伪装就少一个混淆项。等能开机、功能正常了，想加再加。
 
 ---
 
@@ -322,7 +318,7 @@ dex **完全自包含**（1561 个类，零 `miui`/`xiaomi`/`zte` 外部依赖�
 | RGB 灯效 | `/sys/class/leds/aw22xxx_led/cfg`、`effect` |
 | SAR 天线功率 | `/sys/class/leds/sar0/mode_operation`、`sar1/mode_operation` |
 | CPU 频率 | `/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq` |
-| 机型伪装 | `persist.cc.device.name` ← 你那个 mix7 / 小米15Pro 伪装就是它管的 |
+| 设备显示名 | `persist.cc.device.name` ← 设置里那个"设备名称"（用户改成 mix7 的） |
 | 显示相机型号 | 读 `ro.vendor.feature.camera_zte_exif_model` |
 
 > ⚠️ **它写 sysfs 需要 root。** 刷完我们的包之后，如果没装 KernelSU 管理器并授权，
