@@ -191,6 +191,31 @@ bash scripts/06-cleanup-local.sh
 
 ---
 
+## 4.5 红魔10 移植包交叉验证结论（2026-10-22 实测量化）
+
+拿 `E://NX789J_HyperOS_4.0.0.10_A17_10.12`（红魔10，同 SM8750）与 NX737J 的包逐项比对：
+
+| 项目 | 结果 |
+|---|---|
+| **内核 Image** | **sha256 完全相同** `96e5b2e4…`<br>两边都是 `6.6.143-android15-8-zte-1006-4k`、38729088 B、`image_size 0x2350000`、`flags 0xa` |
+| **rawprogram / patch XML** | **12 个文件字节级完全相同** → GPT 布局 100% 一致 |
+| **super 内 system/system_ext/product/odm** | 起始与大小**完全一致** |
+| **extent 单位** | 两边都是 **512 B**（不是 geometry 写的 4096） |
+| **Slot B** | 两边都全空（无 A/B 回退） |
+| **唯一差异** | `vendor` 2.558 vs 2.694 GiB、`vendor_dlkm`、`system_dlkm` —— 硬件不同 |
+| **boot.img** | 内核段相同，首个差异 `0x24f101b`（正好在内核结束 `0x24f0580` 之后），差的是 AVB vbmeta payload |
+
+**三条实证结论：**
+
+1. 两台是**同一套 ZTE 固件模板**，不是"相似"，是字节级一致
+2. **内核跨机型通用** —— ZTE 用同一个构建给两台用，这解释了"同内核能编类原生"
+3. `BOARD_BOOTIMAGE_PARTITION_SIZE` 等分区大小可放心复用
+
+反过来说，这也证明了 `assemble-super.sh` **必须运行时读偏移**：`vendor` 大小两台不同，
+任何硬编码换台机器就错位 —— 正是第三轮修掉的那个 bug。
+
+---
+
 ## 5. 费用账（¥25 硬顶）
 
 | 项目 | 单价 | 时长 | 费用 |
