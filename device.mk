@@ -30,7 +30,17 @@ PRODUCT_USE_DYNAMIC_PARTITIONS := true
 # 也就是说「A17 framework + A15 vendor」是 Google 官方支持的组合，不是野路子。
 # 我们的 TARGET_PREBUILT_KERNEL 来自一台 A17 系统，vendor 是 A15，同构。
 PRODUCT_SHIPPING_API_LEVEL := 35
-BOARD_SHIPPING_API_LEVEL := 202404
+
+# ⚠️ 这里原来还有一行 BOARD_SHIPPING_API_LEVEL := 202404 —— **删掉了**。
+#    原因：BOARD_* 是 BoardConfig 阶段读的变量，写在 device.mk（product 阶段）里
+#    完全不起作用，只会让人误以为已经设好了。
+#
+#    真正要让 ro.board.api_level = 202404 生效（VINTF 检查要用，缺了开不了机），
+#    统一交给 system.prop：
+#        ro.board.api_level=202404
+#        ro.board.first_api_level=202404
+#    这样只有一个来源，不会出现「BoardConfig 生成一遍 + system.prop 再写一遍」
+#    的重复属性（AOSP 对重复属性是会报错的，那种错很难一眼看出来）。
 
 # ── Boot control / update engine (A/B device) ──────────────────────────────
 PRODUCT_PACKAGES += \
@@ -74,19 +84,25 @@ PRODUCT_COPY_FILES += \
 PRODUCT_SOONG_NAMESPACES += \
     $(LOCAL_PATH)
 
-# ── 努比亚专有 App 回注（可选）───────────────────────────────────────────────
-# 原厂 system 里有几个努比亚自己的 App，换 system 会丢：
-#   NBAccount / NBUserCenter / zteaccount_mfv / Nfc_st /
-#   CameraMind / CameraExtensionsProxy / RomFixCameraCompat
+# ── 努比亚组件回注（已实测确定清单）────────────────────────────────────────
+# 换掉 /system 和 /system_ext 会丢厂商 App。**清单不能靠目录名猜**，必须逐个解析 dex。
+# 当前回注 6 个包 + 3 个 Java 库 + 3 个权限/库声明 XML，详见 nubia-apps.mk：
 #
-# 移植包作者在把 system 换成澎湃4之后仍然保留了这批 App，说明摘掉会出问题
-# （账号登录、NFC、相机扩展）。所以这里默认带上。
+#   保留（dex 里零 miui/xiaomi 外部依赖，能在 AOSP 上跑）
+#     NBAccount        cn.nubia.accounts        努比亚账号
+#     NBUserCenter     cn.nubia.usercenter      用户中心
+#     zteaccount_mfv   org.zx.AuthComp          统一认证（登录依赖它）
+#     Wallet           com.zte.wallet           钱包（priv-app，带白名单）
+#     WalletCore       com.zte.wallet.core      钱包核心
+#     CCSetting        com.cc.setting           ★移植者的「高级设置」，sysfs 开关
+#     transferclient.jar / com.st.android.nfc_extensions{,_16}.jar
 #
-# 怎么拿到这些 APK（二选一，本地跑）：
-#   bash scripts/09-pull-nubia-apps.sh            ← 直接从手机 adb pull，最快（几十 MB）
-#   bash scripts/08-extract-nubia-apps.sh super.img  ← 从 super.img 解包（服务器上跑）
+#   剔除（看着像努比亚，其实是小米/移植者的）
+#     Nfc_st                   = com.android.nfc（小米定制版，且与 AOSP NfcNci 撞包名）
+#     CameraMind               = com.xiaomi.cameramind（依赖 miui 类）
+#     CameraExtensionsProxy    = com.android.cameraextensions（与 AOSP 同名包冲突风险）
+#     RomFixCameraCompat       = com.cc.romfix.cameracompat（移植者的相机补丁）
 #
-# 两个脚本都会生成 prebuilts/nubia-apps/ + nubia-apps.mk。
-# 下面用 -include（带减号）：文件不存在时静默跳过，不会编译失败。
-# 所以只要产物在，就自动生效；没有就编纯 AOSP。
+# 怎么拿：bash scripts/09-pull-nubia-apps.sh   （从手机 adb pull，已实测通过）
+# 有产物就自动生效，没有就编纯 AOSP。
 -include $(LOCAL_PATH)/nubia-apps.mk

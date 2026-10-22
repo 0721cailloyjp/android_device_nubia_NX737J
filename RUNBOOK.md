@@ -604,6 +604,79 @@ bash scripts/assemble-super.sh <产物目录> <原super.img> <新super.img>
 
 脚本自动检测溢出并给出 lpmake 命令。空闲 7.39 GiB + Slot B 全空，有空间重组。
 
+> 已做缓解：BoardConfig 加了 `WITH_DEXPREOPT_BOOT_IMG_AND_SYSTEM_SERVER_ONLY := true`，
+> system.img 会明显缩小，很可能直接塞进 1.033 GiB（in-place 最稳，不需要 lpmake）。
+
+---
+
+### 6.1 周六实际刷机步骤（照着做）
+
+> 前置：救砖包已核对完整 —— `E:\NX737J_HyperOS_4.0.0.10_A17_10.12\`，
+> 60 个文件 17 GB，`FlashTool\res\firehose.elf`(1.66 MB) + rawprogram0~5.xml 齐全。
+> 刷挂随时能用 `一键刷机.bat` 回原厂。
+
+**第 0 步：把产物和原厂文件摆到一起**
+
+```bash
+# 本地，假设产物已解压到 F:\nx737j-img\，原厂包在 E 盘
+cp -r F:\nx737j-img F:\fl
+cp "E:\NX737J_HyperOS_4.0.0.10_A17_10.12\Firmware\super.img" F:\fl\
+cp "E:\NX737J_HyperOS_4.0.0.10_A17_10.12\Firmware\vbmeta.img"        F:\fl\
+cp "E:\NX737J_HyperOS_4.0.0.10_A17_10.12\Firmware\vbmeta_system.img" F:\fl\
+```
+
+**第 1 步：合成新 super（在本地跑，不用云）**
+
+```bash
+cd F:\2026-10-18-14-35-15\nx737j-pixelos
+bash scripts/assemble-super.sh F:\fl F:\fl\super.img F:\fl\nx737j-super.img
+```
+
+- 只要 system.img ≤ 1.033 GiB 就走 **in-place 原地覆盖**（十几秒，最稳）
+- 超了会打印现成的 lpmake 命令；真走到那一步再单独处理
+
+**第 2 步：关 AVB 校验（两个 vbmeta 都要）**
+
+```bash
+python scripts/patch-vbmeta.py --flags 3 --out-dir F:\fl F:\fl\vbmeta.img F:\fl\vbmeta_system.img
+# 产出 vbmeta_patched.img / vbmeta_system_patched.img，flags 都应是 0x03
+```
+
+flags=3 = 关闭 verity + 关闭 verification。**不改这一步，刷进去就是"Your device is corrupt"红字。**
+
+**第 3 步：进 bootloader 刷**
+
+```bash
+adb reboot bootloader
+fastboot getvar current-slot      # 记下来，确认设备当前在哪个槽
+
+fastboot flash vbmeta        F:\fl\vbmeta_patched.img
+fastboot flash vbmeta_system F:\fl\vbmeta_system_patched.img
+fastboot flash super         F:\fl\nx737j-super.img    # 16 GiB，USB3 约 2~5 分钟
+fastboot --set-active=a
+fastboot -w                     # 清 data，必须做（见本节开头）
+fastboot reboot
+```
+
+> 如果 `fastboot flash super` 报 `unknown partition` 或拒绝：
+> 走 EDL 回原厂再重来，或者用 fastbootd（`adb reboot fastboot` 后 `fastboot flash system system.img` 逐分区刷）。
+> 我们的 super 只填了 **slot A**，所以 `--set-active=a` 不能省，否则起不来。
+
+**第 4 步：首启等待**
+
+- 首启要跑 dex2oat（因为只预编译了 boot+system_server），**等 5~15 分钟正常**
+- 别看到开机动画不动就拔电
+
+**第 5 步：没起来就抓日志，别盲刷**
+
+```bash
+bash scripts/07-capture-bootlog.sh     # 循环等 adb、抓 logcat + dmesg
+```
+
+抓到的日志贴给我，**千万别自己乱改重刷** —— 重编一次 ¥9.4。
+
+**回原厂（任何时候刷挂了）**：把 `F:\fl\super.img` 换回原厂那份 → 运行 `E:\...\一键刷机.bat`（EDL 全量刷 6 个 LUN）。
+
 ---
 
 ## 7. 已排除的坑
@@ -627,19 +700,32 @@ bash scripts/assemble-super.sh <产物目录> <原super.img> <新super.img>
 
 外加：自造 overlay 的资源类型写错（`config_mainBuiltInDisplayCutout` 是 string 不是 bool），整目录已删。
 
-### 7.2 仓库依赖（2026-10-22 审计发现，会让编译直接挂）
+### 7.2 仓库依赖（2026-10-23 修正，之前这里写错过一次）
 
-`repo sync` 完成后这三个路径原本会不存在，因为**它们不在 PixelOS / LineageOS 的默认 manifest 里**：
+⚠️ **旧版本说"要把 sepolicy_vndr 和 device/lineage/sepolicy 加进 local manifest"——这是错的，**
+会导致 `repo sync` 报 Nested projects / duplicate project。2026-10-23 走 api.github.com 核实后重写：
 
-| 路径 | 谁引用 | 处置 |
-|---|---|---|
-| `device/qcom/sepolicy_vndr` | BoardConfig `include .../SEPolicy.mk` | **已加入 local manifest**，分支必须是 `lineage-24.0-caf-sm8750`（SM8750 专用，不是通用 lineage-24.0） |
-| `device/lineage/sepolicy` | BoardConfig `SYSTEM_EXT_PRIVATE_SEPOLICY_DIRS` | **已加入 local manifest**，`lineage-24.0` |
-| `hardware/qcom-caf/wlan` | device.mk `PRODUCT_SOONG_NAMESPACES` + `libwifi-hal-qcom` | **已从设备树删除** —— 该路径在 LineageOS 组织下 **404，仓库不存在** |
+| 路径 | 谁引用 | 实际情况 | 处置 |
+|---|---|---|---|
+| `device/qcom/sepolicy_vndr/sm8750` | BoardConfig `include .../SEPolicy.mk` | **ROM 自带**（PixelOS/LineageOS 的 snippets/lineage.xml 都有，路径带 `/sm8750`） | 不进 local manifest；BoardConfig 改成条件包含，见下 |
+| `device/lineage/sepolicy` | BoardConfig `SYSTEM_EXT_PRIVATE_SEPOLICY_DIRS` | **ROM 自带**（snippets/lineage.xml） | 不进 local manifest |
+| `hardware/qcom-caf/wlan` | （已删除） | 在 LineageOS 组织下 **404** | 已从设备树删除依赖 |
+
+**local manifest 现在只剩一个项目：设备树本身。**
+
+BoardConfig 里 sepolicy 的包含写成了容错形式（路径不存在就跳过并警告，不会挂）：
+
+```make
+ifneq ($(wildcard device/qcom/sepolicy_vndr/sm8750/SEPolicy.mk),)
+  include device/qcom/sepolicy_vndr/sm8750/SEPolicy.mk
+else ifneq ($(wildcard device/qcom/sepolicy_vndr/SEPolicy.mk),)
+  include device/qcom/sepolicy_vndr/SEPolicy.mk
+endif
+```
 
 wifi 第一次开机不依赖它（stock vendor 提供 HAL）。等能开机了再找正确仓库补。
 
-### 7.3 已核实存在的依赖
+### 7.3 已核实存在的依赖（api.github.com 实测，2026-10-23）
 
 | 路径 | 来源 | 状态 |
 |---|---|---|

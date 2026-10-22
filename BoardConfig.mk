@@ -83,6 +83,15 @@ TARGET_SCREEN_DENSITY := 480
 TARGET_USERIMAGES_USE_F2FS := true
 BOARD_USES_METADATA_PARTITION := true
 
+# ── dexpreopt 只做 boot image + system_server（省时间 + 省体积，一举两得）──
+# 默认会预编译所有系统 App 的 oat/vdex：编译慢 10~20 分钟，镜像大几百 MB。
+# system_a 槽位只有 1.033 GiB，AOSP 全量 system.img 很容易超，超了就得重组 super。
+# 只预编译 boot image + system_server：
+#   1. 编译更快（省 ¥）
+#   2. system.img 更小，更可能直接塞进原槽位（in-place dd，最稳）
+#   3. 代价是首启/首次打开 App 略慢 —— 对第一版求开机的目标完全可以接受
+WITH_DEXPREOPT_BOOT_IMG_AND_SYSTEM_SERVER_ONLY := true
+
 # ── Partition sizes (from the device's own EDL firmware images) ────────────
 BOARD_FLASH_BLOCK_SIZE := 262144
 BOARD_BOOTIMAGE_PARTITION_SIZE := 100663296
@@ -138,7 +147,25 @@ VENDOR_SECURITY_PATCH := 2026-05-01
 # dynamic HAL policy has to be routed system-side (same pattern as NX789J /
 # NX809J). sun is in UM_6_6_FAMILY upstream so the qcom vndr include works.
 TARGET_USES_PREBUILT_VENDOR_SEPOLICY := true
-include device/qcom/sepolicy_vndr/SEPolicy.mk
+
+# 路径注意：ROM 的 snippets/lineage.xml 把这个仓库放在 **device/qcom/sepolicy_vndr/sm8750**，
+# 不是仓库根。所以这里按 .../sm8750/SEPolicy.mk 引用。
+#
+# 而且要写成条件包含：路径万一不存在（换了 ROM、分支变了），也只是跳过，
+# 不会让整个 BoardConfig 解析失败 —— 这种"少一个文件就编不出来"的坑不值得赌。
+#
+# 为什么要 include 它：SM8750 在 UM_6_6_FAMILY 里，qcom 的 SEPolicy.mk 会往
+# SYSTEM_EXT_PRIVATE_SEPOLICY_DIRS 里补 vendor 侧的宏定义。缺了它的典型症状是
+# system_ext 私有策略里引用的 type 未定义，编译期报 "unknown type"。
+ifneq ($(wildcard device/qcom/sepolicy_vndr/sm8750/SEPolicy.mk),)
+  include device/qcom/sepolicy_vndr/sm8750/SEPolicy.mk
+else ifneq ($(wildcard device/qcom/sepolicy_vndr/SEPolicy.mk),)
+  # 兼容另一种目录布局（仓库直接放在 device/qcom/sepolicy_vndr 根下）
+  include device/qcom/sepolicy_vndr/SEPolicy.mk
+else
+  $(warning [NX737J] 没找到 device/qcom/sepolicy_vndr{,/sm8750}/SEPolicy.mk，跳过 qcom sepolicy)
+endif
+
 SYSTEM_EXT_PRIVATE_SEPOLICY_DIRS := \
     $(filter-out device/lineage/sepolicy/qcom/dynamic,$(SYSTEM_EXT_PRIVATE_SEPOLICY_DIRS))
 
