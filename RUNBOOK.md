@@ -58,7 +58,18 @@ tail -f /data/sync.log
 bash scripts/cost.sh                # 随时看花了多少
 ```
 
-**sync 完成后先别急着升配**，跑完整性检查确认树是好的：
+**sync 完成后先跑体检，别急着升配。** `01-preflight.sh` 会在 2 分钟内验 6 组东西：
+源码树完整性、设备树与依赖仓库、**lunch 能否解析所有 .mk**、关键变量回读（`get_build_var`）、
+工具链版本（尤其 `mkfs.erofs`）、资源余量。
+
+```bash
+bash scripts/01-preflight.sh
+```
+
+`lunch` 那一步最有价值——它真的会解析全部 .mk，缺文件/写错变量会在几秒内报错，
+而不是等你升到 16核32G 编了半小时才炸。
+
+体检不过就按 ✗ 逐项修，别往下走。手动做同样的事：
 
 ```bash
 for d in build frameworks/base hardware/interfaces prebuilts/clang prebuilts/tools device/nubia/NX737J; do
