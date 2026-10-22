@@ -28,7 +28,19 @@ PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/prebuilts/nubia-apps/vendor.zte.hardware.camera.transferclient.jar:$(TARGET_COPY_OUT_SYSTEM_EXT)/framework/vendor.zte.hardware.camera.transferclient.jar
 
 PRODUCT_COPY_FILES += \
+    $(LOCAL_PATH)/prebuilts/nubia-apps/com.st.android.nfc_extensions.jar:$(TARGET_COPY_OUT_SYSTEM_EXT)/framework/com.st.android.nfc_extensions.jar
+
+PRODUCT_COPY_FILES += \
+    $(LOCAL_PATH)/prebuilts/nubia-apps/com.st.android.nfc_extensions_16.jar:$(TARGET_COPY_OUT_SYSTEM_EXT)/framework/com.st.android.nfc_extensions_16.jar
+
+PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/prebuilts/nubia-apps/privapp_permissions_whitelist_com.zte.wallet.xml:$(TARGET_COPY_OUT_SYSTEM)/etc/permissions/privapp_permissions_whitelist_com.zte.wallet.xml
+
+PRODUCT_COPY_FILES += \
+    $(LOCAL_PATH)/prebuilts/nubia-apps/com.st.android.nfc_extensions.xml:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/permissions/com.st.android.nfc_extensions.xml
+
+PRODUCT_COPY_FILES += \
+    $(LOCAL_PATH)/prebuilts/nubia-apps/com.st.android.nfc_extensions_16.xml:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/permissions/com.st.android.nfc_extensions_16.xml
 
 PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/prebuilts/nubia-apps/vendor.zte.hardware.camera.transferclient.xml:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/permissions/vendor.zte.hardware.camera.transferclient.xml

@@ -112,12 +112,21 @@ declare -a WANT=(
     WalletCore             # com.zte.wallet.core    ZTE 钱包核心（priv-app）
 )
 
-# 非 APK 的配套文件：Java 库 + 它自己的 <library> 声明
-# transferclient.jar 是努比亚相机流转（把相机画面投给别的设备）的 Java 层 API，
-# 对应的 XML 用 <library file="..."> 指向它。少一个，声明就指向空文件，
-# PackageManager 会报 "Could not find library"，用到它的 App 直接崩。
+# 非 APK 的配套文件：Java 库 + 它们自己的 <library> 声明
+#
+# ① transferclient.jar —— 努比亚相机流转（把相机画面投给别的设备）的 Java 层 API。
+#    对应的 XML 用 <library file="..."> 指向它。少一个，声明就指向空文件，
+#    PackageManager 会报 "Could not find library"，用到它的 App 直接崩。
+#
+# ② com.st.android.nfc_extensions*.jar —— 意法半导体 ST54L 的 NFC 扩展 API。
+#    这台机器 NFC 芯片就是 ST54L（实测 ro.vendor.feature.board_uses_nfc = ST54L），
+#    而且 ZTE 钱包的 dex 里有 4 处 Lcom/st/... 引用，说明刷卡走的就是这套。
+#    AOSP 的 NfcNci 只能做基础 NFC；门禁卡 / 公交卡这类 eSE 操作要靠这两个库。
+#    325 KB，纯 Java 库、不占包名、不会和 AOSP 撞车，没有理由不带。
 declare -a EXTRA=(
     /system_ext/framework/vendor.zte.hardware.camera.transferclient.jar
+    /system_ext/framework/com.st.android.nfc_extensions.jar
+    /system_ext/framework/com.st.android.nfc_extensions_16.jar
 )
 
 declare -a FOUND=()
@@ -190,9 +199,13 @@ done
 # 这些 XML 声明了努比亚 App 的特权权限。**必须跟着 App 一起回注**，
 # 否则开机时 system_server 会因 Signature|privileged 权限未在白名单里而拒绝授权，
 # 表现为 App 打开就崩、或账号/NFC 功能静默失效。
-say "找相关的 privapp-permissions XML"
+say "找相关的权限 / 库声明 XML"
+# 匹配规则要同时覆盖三类：
+#   ① 努比亚/ZTE 自家的（nubia|zte）
+#   ② ST54L NFC 扩展的 <library> 声明（com.st.android.nfc_extensions）
+# 注意别把 com.nxp.nfc.* 一起捞进来 —— 这台机器的 NFC 芯片是 ST，不是 NXP。
 PMAP=$(adb shell 'for d in /system/etc/permissions /system_ext/etc/permissions /product/etc/permissions; do ls -1 $d 2>/dev/null | sed "s|^|$d/|"; done' 2>/dev/null \
-       | tr -d '\r' | grep -iE 'nubia|zte' || true)
+       | tr -d '\r' | grep -iE 'nubia|zte|com\.st\.android\.nfc_extensions' || true)
 if [[ -z "$PMAP" ]]; then
     warn "没找到 nubia/zte 相关的权限 XML（可能本来就没有，或用了别的命名）"
 else

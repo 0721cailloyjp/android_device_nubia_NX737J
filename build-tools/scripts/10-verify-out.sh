@@ -85,7 +85,11 @@ declare -a NEED=(
     "system/priv-app/Wallet/Wallet.apk"
     "system/priv-app/WalletCore/WalletCore.apk"
     "system_ext/framework/vendor.zte.hardware.camera.transferclient.jar"
+    "system_ext/framework/com.st.android.nfc_extensions.jar"
+    "system_ext/framework/com.st.android.nfc_extensions_16.jar"
     "system_ext/etc/permissions/vendor.zte.hardware.camera.transferclient.xml"
+    "system_ext/etc/permissions/com.st.android.nfc_extensions.xml"
+    "system_ext/etc/permissions/com.st.android.nfc_extensions_16.xml"
     "system/etc/permissions/privapp_permissions_whitelist_com.zte.wallet.xml"
 )
 for f in "${NEED[@]}"; do
@@ -97,18 +101,21 @@ for f in "${NEED[@]}"; do
 done
 
 # 库声明指向的 jar 必须存在，否则 PackageManager 报 Could not find library
-TPL="$OUT/system_ext/etc/permissions/vendor.zte.hardware.camera.transferclient.xml"
-if [[ -f "$TPL" ]]; then
-    jar=$(grep -oE 'file="[^"]+"' "$TPL" | head -1 | sed 's/file="//;s/"//')
-    if [[ -n "$jar" ]]; then
-        # file= 写的是设备端绝对路径（/system_ext/...），映射到 OUT 下
+# 逐个扫 system_ext/etc/permissions，凡是声明了 file="/system_ext/framework/..." 的都要核对
+if [[ -d "$OUT/system_ext/etc/permissions" ]]; then
+    found_any=0
+    while IFS= read -r x; do
+        found_any=1
+        jar=$(grep -oE 'file="[^"]+"' "$x" 2>/dev/null | head -1 | sed 's/file="//;s/"//')
+        [[ -n "$jar" ]] || continue
         rel="${jar#/}"
         if [[ -s "$OUT/$rel" ]]; then
-            pass "<library> 指向的 $jar 存在"
+            pass "$(basename "$x") → ${jar} 存在"
         else
-            fail "<library> 指向 $jar，但镜像里**没有这个文件**"
+            fail "$(basename "$x") 指向 ${jar}，但镜像里**没有这个文件**"
         fi
-    fi
+    done < <(grep -l 'file="/system_ext/framework/' "$OUT"/system_ext/etc/permissions/*.xml 2>/dev/null)
+    (( found_any )) || warn "system_ext/etc/permissions 里没有任何 <library> 声明（库都丢了？）"
 fi
 
 # ── 3. 不该出现的东西 ───────────────────────────────────────────────────────

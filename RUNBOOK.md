@@ -5,7 +5,62 @@
 
 ---
 
-## 0. 今晚就能做的（不花钱）
+## 0. 设备身份：确认是 Z70S Ultra（2026-10-22 实测留档）
+
+`ro.product.brand/model/device` 读出来是 `Xiaomi / 2410DPN6CC / haotian`，
+**这不代表硬件是小米** —— 移植包会把源 ROM 的身份属性原样带过来（改了会破坏 DRM/attestation）。
+真正的证据在硬件层：
+
+| 属性 | 值 | 说明 |
+|---|---|---|
+| `ro.vendor.feature.zte_feature_nfcname` | **`NX737J`** | 直接就是我们的机型号 |
+| `ro.vendor.feature.camera_zte_exif_model` | **`nubia Z70S Ultra`** | 相机 EXIF 里写的就是这个 |
+| `ro.vendor.feature.nubia.exif.module` | `NUBIA_Z70S_ULTRA` | 同上 |
+| `ro.vendor.feature.camera_series_info` | `NubiaPQ84A02` | PQ84A02 = Z70S Ultra 内部代号 |
+| `ro.vendor.feature.zte_strategy_control_str` | `PQ84A02_W` | 同上 |
+| `ro.vendor.feature.zte_feature_nfcmodle` | `Z70SU` | 同上 |
+| `ro.vendor.feature.baseline_name` | `NebulaOS2.0` | 努比亚 MyOS 的基线名 |
+| `ro.vendor.feature.zte_usb_iso` | `NUBIA` | USB 厂商标识 |
+| `ro.bootimage.build.fingerprint` | `nubia/CN_PQ84A02/PQ84A02:15/...` | bootimage 是努比亚的 |
+| `ro.product.system_dlkm.brand` | `nubia` | |
+| `ro.product.vendor_dlkm.brand` | `nubia` | |
+
+### 各分区的真实归属（这个很重要，别搞错）
+
+| 分区 | 归属 | 内容特征 |
+|---|---|---|
+| boot / bootloader / kernel | **努比亚 Z70S** | `nubia/CN_PQ84A02`，A15 基线 |
+| **vendor** | **ZTE 的** | 200+ 个 `vendor.zte.*` HAL；`libNubiaImageAlgorithmVD.so`、`libztednn.so`、`libztellm.so`；`/vendor/lib64/camera/com.zte.eeprom.*_qvburdock.so` 等 ZTE EEPROM HAL |
+| odm | 小米的（薄分区） | 只有 bin/etc/lib64，**无任何 zte 内容** |
+| system / system_ext / product | 小米 HyperOS | 见 2.5 / 2.5.1 |
+| system_dlkm / vendor_dlkm | 努比亚 | `ro.product.*_dlkm.brand = nubia` |
+
+**结论：努比亚的"特性"绝大部分活在 `/vendor` 里**（相机算法、指纹 ifaa、激光对焦、
+AI 模型、充电、触控、显示、NFC、电话特性），而我们的方案原样保留 vendor
+→ 这就是 system-side hybrid 架构最大的价值。
+
+`/vendor/lib64` 里能直接看到的 ZTE 组件（部分）：
+
+```
+libNubiaImageAlgorithmVD.so              努比亚图像算法（视频人像）
+libztebert.so / libztebge.so / libztellm.so / libztevitllm.so   ZTE 端侧大模型
+libztednn.so / libztesensevoice.so       推理引擎 / 语音
+vendor.zte.aimodel-V1-ndk.so             AI 模型服务（就是 App 里 com.zte.aimodel 的 HAL 端）
+vendor.zte.fingerprint.ifaaaidl-V1-ndk_platform.so   指纹 ifaa
+vendor.zte.fingerprint.ztecmdaidl-V1-ndk.so          指纹命令通道（init.svc.ztecmdaidl）
+vendor.zte.hardware.camera.transfer-V1-ndk.so        相机流转
+vendor.zte.hardware.laser2-V1-ndk_platform.so        激光对焦
+vendor.zte.ldd.cmd-V2-ndk.so / vendor.zte.modem-V1-ndk.so / vendor.zte.radio-V1-ndk.so
+vendor.zte.nook.modem-V2-ndk.so / vendor.zte.subsys-V1-ndk.so
+```
+
+**注意一个容易误解的点**：App dex 里"缺"的 `com.zte.aimodel.*` 是 **HAL 的 Java 侧封装**，
+真身是 `/vendor/lib64/vendor.zte.aimodel-V1-ndk.so`。vendor 里没有对应的 `-java.jar`，
+所以 Java 层那几个类确实没人提供 —— 这与现有移植包的状态一致，不是我们引入的问题。
+
+---
+
+## 0.1 今晚就能做的（不花钱）
 
 ```bash
 cd F:\2026-10-18-14-35-15\nx737j-pixelos\device-nubia-NX737J
@@ -194,6 +249,15 @@ KEEP_STOCK_PRODUCT=0 bash scripts/03-build.sh
 | `Wallet.apk` | `com.zte.wallet` | 1512 + 41 | ZTE 钱包（priv-app） |
 | `WalletCore.apk` | `com.zte.wallet.core` | 11 | 钱包核心（priv-app） |
 | `vendor.zte.hardware.camera.transferclient.jar` | — | — | 相机流转的 Java 层 API |
+| `com.st.android.nfc_extensions.jar` | — | — | ST54L 的 NFC 扩展 API（130 KB） |
+| `com.st.android.nfc_extensions_16.jar` | — | — | 同上，16 版（195 KB） |
+
+> **为什么要带 ST 的两个库**：这台机器的 NFC 芯片是意法半导体 **ST54L**
+> （实测 `ro.vendor.feature.board_uses_nfc = ST54L`），而且 ZTE 钱包的 dex 里有
+> 4 处 `Lcom/st/...` 引用——说明刷卡（eSE）走的就是这套扩展 API。
+> AOSP 的 `NfcNci` 只能做基础 NFC 读写，门禁卡 / 公交卡这类必须靠这两个库。
+> 325 KB，纯 Java 库、不占包名、不会和 AOSP 撞车。
+> 对应还有 `com.st.android.nfc_extensions{, _16}.xml` 两个 `<library>` 声明，必须一起带。
 
 > `WalletSupport.apk`（`com.zte.wallet.support`，47 MB）**故意不带**：
 > 缺 6 个 `com.zte.aimodel.*` / `com.zte.ctsutils.CtsUtils` / `com.zte.feature.Feature`，
