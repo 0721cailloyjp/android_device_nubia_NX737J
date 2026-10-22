@@ -24,7 +24,9 @@ PRODUCT_USE_DYNAMIC_PARTITIONS := true
 #   ro.vendor.build.version.sdk  = 35      ← A15 vendor
 #   ro.product.build.version.sdk = 37
 #   ro.product.first_api_level   = 35
+#   ro.board.api_level           = 202404   ← 和我们的 BOARD_SHIPPING_API_LEVEL 一字不差
 #   /system/etc/vintf/compatibility_matrix.202404.xml 存在 ← A15 FCM 被 A17 框架正式支持
+#   指纹：system :17/CP2A.260605.016  /  odm :15/AQ3A.250226.002（同机共存）
 # 也就是说「A17 framework + A15 vendor」是 Google 官方支持的组合，不是野路子。
 # 我们的 TARGET_PREBUILT_KERNEL 来自一台 A17 系统，vendor 是 A15，同构。
 PRODUCT_SHIPPING_API_LEVEL := 35
