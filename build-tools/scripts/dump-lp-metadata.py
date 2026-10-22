@@ -49,6 +49,74 @@ def _die(msg):
     sys.exit("dump-lp-metadata: " + msg)
 
 
+def collect(path):
+    """返回结构化数据，供 --json 与 main() 共用。"""
+    size = os.path.getsize(path)
+    with open(path, "rb") as f:
+        blob = f.read(0x8000)
+    magic, struct_size, _cksum, meta_max, slots, lbs_claim = struct.unpack_from(
+        "<II32sIII", blob, GEOMETRY_OFF)
+    if magic != GEOMETRY_MAGIC:
+        raise SystemExit("no LP geometry at 0x%x" % GEOMETRY_OFF)
+    p_count, p_esize, _pe = struct.unpack_from("<III", blob, DESCRIPTORS_OFF)
+    e_count, e_esize, _ee = struct.unpack_from("<III", blob, DESCRIPTORS_OFF + 12)
+    g_count, g_esize, _ge = struct.unpack_from("<III", blob, DESCRIPTORS_OFF + 24)
+
+    parts = {}
+    for i in range(p_count):
+        base = PARTITION_TABLE_OFF + i * p_esize
+        e = blob[base: base + p_esize]
+        name = e[:36].split(b"\x00")[0].decode(errors="replace")
+        if not name:
+            continue
+        _grp, ext_idx, num_ext, _attr = struct.unpack_from("<4I", e, 36)
+        parts[name] = (ext_idx, num_ext)
+
+    ext_off = PARTITION_TABLE_OFF + p_count * p_esize
+    extents = []
+    for i in range(e_count):
+        ns, tt, td, _ts = struct.unpack_from("<QIII", blob, ext_off + i * e_esize)
+        extents.append((ns, tt, td))
+
+    grp_off = ext_off + e_count * e_esize
+    groups = {}
+    for i in range(g_count):
+        e = blob[grp_off + i * g_esize: grp_off + (i + 1) * g_esize]
+        gname = e[:36].split(b"\x00")[0].decode(errors="replace")
+        maximum, = struct.unpack_from("<Q", e, 40)
+        groups[gname] = maximum
+
+    slot_a = {}
+    for name, (ext_idx, num_ext) in parts.items():
+        if not name.endswith("_a") or num_ext == 0:
+            continue
+        ns, tt, td = extents[ext_idx]
+        if tt != 0:
+            continue
+        slot_a[name[:-2]] = {"start": td * EXTENT_UNIT,
+                             "size": ns * EXTENT_UNIT}
+    return {"image_size": size, "unit": EXTENT_UNIT,
+            "slot_a": slot_a, "groups": groups}
+
+
+def main_json(path):
+    import json
+    print(json.dumps(collect(path), indent=2))
+
+
+def main_shell(path):
+    """输出可直接 eval 的 shell 变量，避免临时文件与跨平台路径问题。"""
+    d = collect(path)
+    print("LP_IMG_SIZE=%d" % d["image_size"])
+    print("LP_UNIT=%d" % d["unit"])
+    for name, v in sorted(d["slot_a"].items()):
+        print("LP_%s_START=%d" % (name, v["start"]))
+        print("LP_%s_SIZE=%d" % (name, v["size"]))
+    for gname, mx in sorted(d["groups"].items()):
+        if mx:
+            print("LP_GRP_%s=%d" % (gname, mx))
+
+
 def main(path):
     size = os.path.getsize(path)
     with open(path, "rb") as f:
@@ -177,6 +245,12 @@ def main(path):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    if len(args) != 1:
         sys.exit(__doc__)
-    main(sys.argv[1])
+    if "--json" in sys.argv:
+        main_json(args[0])
+    elif "--shell" in sys.argv:
+        main_shell(args[0])
+    else:
+        main(args[0])
