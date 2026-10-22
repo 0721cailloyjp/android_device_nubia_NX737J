@@ -21,7 +21,13 @@ OUT="${DEV}/prebuilts/nubia-apps"
 MK="${DEV}/nubia-apps.mk"
 
 LISTONLY=0
-[[ "${1:-}" == "--list" ]] && LISTONLY=1
+FORCE=0
+for a in "$@"; do
+    case "$a" in
+        --list)  LISTONLY=1 ;;
+        --force) FORCE=1 ;;
+    esac
+done
 
 say()  { printf '\033[1;36m[nubia]\033[0m %s\n' "$*"; }
 ok()   { printf '  \033[1;32m✓\033[0m %s\n' "$*"; }
@@ -47,7 +53,25 @@ command -v adb >/dev/null 2>&1 || {
     exit 1
 }
 adb devices | grep -qw device || { echo "adb 看不到设备。先开 USB 调试并授权。"; exit 1; }
-say "设备：$(adb shell getprop ro.product.device 2>/dev/null | tr -d '\r')  /  $(adb shell getprop ro.build.version.release 2>/dev/null | tr -d '\r')"
+DEV=$(adb shell getprop ro.product.device 2>/dev/null | tr -d '\r')
+MODEL=$(adb shell getprop ro.product.model 2>/dev/null | tr -d '\r')
+BRAND=$(adb shell getprop ro.product.brand 2>/dev/null | tr -d '\r')
+REL=$(adb shell getprop ro.build.version.release 2>/dev/null | tr -d '\r')
+say "设备：${DEV}  /  ${MODEL}  /  ${BRAND}  /  Android ${REL}"
+
+# 设备校验：拉的是努比亚的东西，连错设备会白忙一场
+case "${BRAND}${DEV}${MODEL}" in
+    *nubia*|*Nubia*|*ZTE*|*zte*|*NX737*|*NX789*) : ;;
+    *)
+        echo
+        echo -e "  \033[1;31m⚠️  这台看起来不是努比亚设备\033[0m"
+        echo "     brand=${BRAND}  device=${DEV}  model=${MODEL}"
+        echo "     要拉的是 Z70S（NX737J）或红魔10（NX789J）上的 /system 里的努比亚 App。"
+        echo "     如果确认要在这台上找，加 --force 跳过检查。"
+        echo
+        [[ "${1:-}" == "--force" ]] || exit 2
+        ;;
+esac
 
 # ── 1. 定位 APK ─────────────────────────────────────────────────────────────
 # 以「目录名 = APK 名」为主（这是扫 super.img 实测出来的，最可靠），

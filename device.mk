@@ -17,8 +17,16 @@ $(call inherit-product, $(SRC_TARGET_DIR)/product/virtual_ab_ota/launch_with_ven
 PRODUCT_USE_DYNAMIC_PARTITIONS := true
 
 # ── API levels ──────────────────────────────────────────────────────────────
-# Stock vendor is Android 15 / board API 202404 (GRF-frozen). The HyperOS 4
-# port proves an Android 17 system rides this A15 vendor fine.
+# Stock vendor is Android 15 / board API 202404 (GRF-frozen).
+#
+# 2026-10-22 用一台真机（Xiaomi haotian, Android 17 / CP2A）实测交叉验证：
+#   ro.system.build.version.sdk  = 37      ← A17 系统
+#   ro.vendor.build.version.sdk  = 35      ← A15 vendor
+#   ro.product.build.version.sdk = 37
+#   ro.product.first_api_level   = 35
+#   /system/etc/vintf/compatibility_matrix.202404.xml 存在 ← A15 FCM 被 A17 框架正式支持
+# 也就是说「A17 framework + A15 vendor」是 Google 官方支持的组合，不是野路子。
+# 我们的 TARGET_PREBUILT_KERNEL 来自一台 A17 系统，vendor 是 A15，同构。
 PRODUCT_SHIPPING_API_LEVEL := 35
 BOARD_SHIPPING_API_LEVEL := 202404
 
