@@ -62,9 +62,12 @@ PRODUCT_PACKAGES += \
 #   （路径 hardware/qcom/wlan 与 hardware/qcom-caf/wlan 都指向它）。
 # 它提供 libwifi-hal-qcom / libwifi-hal-ctrl / lib_driver_cmd_qcwcn。
 #
-# 配置完全对齐官方 OnePlus sm8750-common（同 SoC，LineageOS 24.0）：
+# 配置对齐官方 OnePlus sm8750-common（同 SoC，LineageOS 24.0）。
+# ⚠️ 注意：OnePlus 树里有 WifiResTarget，但那是它设备树自带的 overlay
+#   （device/xxx/overlay/WifiResTarget/Android.bp），不是全局模块。我们没有那个
+#   overlay（之前因资源类型错误删了 overlay 目录），加它会 "module not found"。
+#   它是装饰性 wifi 图标 RRO，删掉不影响 wifi 功能。
 PRODUCT_PACKAGES += \
-    WifiResTarget \
     android.hardware.wifi-service \
     hostapd \
     libwifi-hal-ctrl \
