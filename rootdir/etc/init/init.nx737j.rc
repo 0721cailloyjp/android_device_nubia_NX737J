@@ -1,12 +1,25 @@
 # init.nx737j.rc — nubia Z70S Ultra (NX737J)
 #
-# Intentionally inert. The stock vendor ramdisk brings up ALL hardware; this
-# file exists only as a hook for later device-specific tweaks.
-#
 # Do NOT put `setprop ro.*` here — ro properties are fixed at build time and
 # the write silently fails. Put them in system.prop instead.
 # Do NOT redefine any service the stock vendor already declares — that is a
 # guaranteed boot hang.
 
+# ── Disable leftover MIUI/小米 apps ────────────────────────────────────────
+# We keep the stock /product partition, which carries 48 MIUI apps. Their
+# framework classes live in /system_ext, which we replaced with AOSP, so they
+# crash with NoClassDefFoundError the moment anything touches them.
+# The fix is to disable them before they can run: `pm disable-user` is
+# idempotent and only needs PackageManager up, so we fire it once boot
+# completes. `disabled` keeps the service from starting in late_start (too
+# early for pm); the `sys.boot_completed=1` trigger starts it at the right time.
+service nx737j_disable_miui /system/bin/sh /system/etc/disable-miui.sh
+    class main
+    user root
+    group root shell
+    seclabel u:r:shell:s0
+    oneshot
+    disabled
+
 on property:sys.boot_completed=1
-    # placeholder for post-boot device tweaks
+    start nx737j_disable_miui

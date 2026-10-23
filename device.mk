@@ -94,8 +94,11 @@ PRODUCT_PACKAGES += \
 # DEVICE_PACKAGE_OVERLAYS += $(LOCAL_PATH)/overlay
 
 # ── Rootdir (goes to SYSTEM, not vendor — we do not build vendor) ──────────
+# disable-miui.sh is invoked by init.nx737j.rc at boot_completed to disable the
+# leftover MIUI/小米 apps from the retained stock /product (see that rc).
 PRODUCT_COPY_FILES += \
-    $(LOCAL_PATH)/rootdir/etc/init/init.nx737j.rc:$(TARGET_COPY_OUT_SYSTEM)/etc/init/init.nx737j.rc
+    $(LOCAL_PATH)/rootdir/etc/init/init.nx737j.rc:$(TARGET_COPY_OUT_SYSTEM)/etc/init/init.nx737j.rc \
+    $(LOCAL_PATH)/rootdir/etc/disable-miui.sh:$(TARGET_COPY_OUT_SYSTEM)/etc/disable-miui.sh
 
 # ── Soong namespaces ────────────────────────────────────────────────────────
 # 设备树自身 + qcom wlan HAL（libwifi-hal-qcom 所在的 namespace）。
