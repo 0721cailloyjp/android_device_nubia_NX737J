@@ -1,14 +1,7 @@
 # nubia Z70S Ultra (NX737J) system props — bootstrap
 #
-# Deliberately minimal, matching the proven NX789J tree (which is literally
-# this one line). Every extra property is a chance to break first boot.
-#
-# Screen density / cutout / refresh rate all come from:
-#   - TARGET_SCREEN_DENSITY in BoardConfig.mk (480)
-#   - the stock vendor overlays (RRO) that ride along in the vendor partition
-#   - the overlay/ dir in this tree
-#
-# Add device tuning ONLY after the first build boots.
+# 每一条都是「少了会开不了机 / 显示奇怪 / 特权权限崩」的兜底，不是随意堆的。
+# 屏幕密度/刘海/刷新率不在这，来自 TARGET_SCREEN_DENSITY + stock vendor RRO。
 
 ro.zygote=zygote64
 
@@ -39,10 +32,8 @@ ro.board.first_api_level=202404
 
 # 首次 bring-up 保险：priv-app 特权权限校验降级为「只记日志」
 #
-# 我们把努比亚钱包三个包放回了 /system/priv-app。原厂白名单只覆盖
-# com.zte.wallet 和 com.zte.wallet.core，**没有** com.zte.wallet.support。
-# 如果 .support 请求了某个 signature|privileged 权限而白名单里没有，
-# user 构建默认 enforce 会让 PackageManager 在扫描阶段直接抛异常 —— 起不来。
-# userdebug 默认就是 log，所以这行主要是给后面出 user 包时兜底。
-# 确认能开机、并把白名单补全之后，可以删掉。
+# 我们保留了原厂 product（里面一堆 MIUI priv-app），它们会请求 AOSP 不认识的
+# signature|privileged 权限。user 构建默认 enforce 时，PackageManager 扫描阶段
+# 直接抛异常 → 开不了机。userdebug 默认就是 log，这行主要给后面 user 包兜底。
+# 确认能开机、权限白名单处理干净之后可以删。
 ro.control_privapp_permissions=log

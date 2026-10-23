@@ -29,6 +29,17 @@ TARGET_CPU_ABI2 :=
 TARGET_CPU_VARIANT := generic
 TARGET_CPU_VARIANT_RUNTIME := oryon
 
+# 32 位（armeabi-v7a）。⚠️ 骁龙 8 Elite 没有 32 位执行单元，这里只是让
+# core_64_bit 编出 32 位库 + abilist 带上 armeabi-v7a（32 位 App 能装）。
+# 真正运行 32 位代码要靠 Tango 转译层，AOSP 没有，所以纯 32 位 App 装了也会崩。
+# 这些变量**必须**和 TARGET_SUPPORTS_32_BIT_APPS 一起设，否则编译报
+# "TARGET_2ND_ARCH not defined"。
+TARGET_2ND_ARCH := arm
+TARGET_2ND_ARCH_VARIANT := armv7-a-neon
+TARGET_2ND_CPU_ABI := armeabi-v7a
+TARGET_2ND_CPU_ABI2 := armeabi
+TARGET_2ND_CPU_VARIANT := generic
+
 # ── Board ───────────────────────────────────────────────────────────────────
 BOARD_VENDOR := nubia
 TARGET_BOARD_PLATFORM := sun
