@@ -145,6 +145,11 @@ def build_file_map(root: str, device_dir: str):
         if os.path.isfile(p):
             add(p, doc)
 
+    # run-all.sh 是云上入口脚本，和 scripts/ 一起放 build-tools/（保持相对路径 scripts/ 不变）
+    ra = os.path.join(root, "run-all.sh")
+    if os.path.isfile(ra):
+        add(ra, "build-tools/run-all.sh")
+
     # 去重（同一 repo_path 只留一个）
     seen = {}
     for local, rp in files:
