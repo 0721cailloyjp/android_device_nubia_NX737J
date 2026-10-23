@@ -4,18 +4,15 @@
 #
 
 # Inherit from those products. Most specific first.
-# 用 core_64_bit（而非 core_64_bit_only）→ 编出 32 位 bionic/ART/linker/zygote32，
-# ro.product.cpu.abilist 会带上 armeabi-v7a,armeabi，32 位 App 能装上。
 #
-# ⚠️ 关于 32 位 App 能否真正运行（2026-10-23 更正）：
-#   骁龙 8 Elite（SM8750，Oryon）是纯 64 位，没有 32 位执行单元。移植包能跑 32 位 App，
-#   是因为它沿用 HyperOS，里面集成了小米的 "Tango" 转译层（Amanieu Systems 的
-#   32→64 位二进制翻译器），把 32 位指令实时翻译成 64 位跑。
-#   Tango 是深度集成在 HyperOS 的 linker / app_process 里的，不是可独立搬运的 so。
-#   我们换成 AOSP 后这层就没了：32 位 App 能装（abilist 有 armeabi-v7a），
-#   但纯 32 位 App 启动会崩（SIGILL）。绝大部分 App 早就有 64 位版，影响面很小。
-#   若真有某个 32 位 App 是刚需，报名字，我找 64 位版/替代，或评估单独移植 Tango。
-$(call inherit-product, $(SRC_TARGET_DIR)/product/core_64_bit.mk)
+# ⚠️ 用 core_64_bit_only（纯 64 位），**不是** core_64_bit。实测依据（2026-10-23 真机）：
+#   移植包顶层 ro.product.cpu.abilist = arm64-v8a（只有 64 位），虽然它的 /system/lib
+#   有 801 个 32 位库 + 213 个 .so.tango（Tango 转译缓存）+ app_process32，但真正让
+#   32 位 App 跑起来的是 HyperOS 集成的 Tango 转译器（Amanieu Systems，闭源 + 深度集成），
+#   AOSP 搬不过来。切 core_64_bit 只会让我们的 abilist 带上 armeabi-v7a，
+#   32 位 App 能装但没 Tango 跑不了（闪退），还让 system.img 变大、可能超 1.033 GiB 槽位。
+#   所以和移植包顶层保持一致：64 位 only。真有刚需 32 位 App，找 64 位版/替代。
+$(call inherit-product, $(SRC_TARGET_DIR)/product/core_64_bit_only.mk)
 $(call inherit-product, $(SRC_TARGET_DIR)/product/full_base_telephony.mk)
 
 # Inherit from NX737J device

@@ -29,16 +29,10 @@ TARGET_CPU_ABI2 :=
 TARGET_CPU_VARIANT := generic
 TARGET_CPU_VARIANT_RUNTIME := oryon
 
-# 32 位（armeabi-v7a）。⚠️ 骁龙 8 Elite 没有 32 位执行单元，这里只是让
-# core_64_bit 编出 32 位库 + abilist 带上 armeabi-v7a（32 位 App 能装）。
-# 真正运行 32 位代码要靠 Tango 转译层，AOSP 没有，所以纯 32 位 App 装了也会崩。
-# 这些变量**必须**和 TARGET_SUPPORTS_32_BIT_APPS 一起设，否则编译报
-# "TARGET_2ND_ARCH not defined"。
-TARGET_2ND_ARCH := arm
-TARGET_2ND_ARCH_VARIANT := armv7-a-neon
-TARGET_2ND_CPU_ABI := armeabi-v7a
-TARGET_2ND_CPU_ABI2 := armeabi
-TARGET_2ND_CPU_VARIANT := generic
+# 纯 64 位（配合 lineage_NX737J.mk 的 core_64_bit_only）。
+# 不设 32 位 TARGET_2ND_*：骁龙 8 Elite 无 32 位执行单元，移植包虽带 32 位库 +
+# Tango 转译层（闭源，AOSP 搬不了），但顶层 abilist 实测 = arm64-v8a。
+# 我们 64 位 only 与移植包顶层行为一致，还省体积、省编译时间、不超 system 槽位。
 
 # ── Board ───────────────────────────────────────────────────────────────────
 BOARD_VENDOR := nubia
