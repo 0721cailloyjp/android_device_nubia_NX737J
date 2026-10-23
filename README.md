@@ -4,6 +4,9 @@
 **已有资产**：E 盘 `NX737J_HyperOS_4.0.0.10_A17_10.12` —— HyperOS 4 (Android 17) 移植包，EDL 9008 直刷，日用水平
 **目标**：基于该移植包的硬件适配成果，构建类原生 ROM（PixelOS 17 / AviumUI 17 / LineageOS 24.0）
 
+> ⚠️ **本文档是早期概览**。最新、完整、可执行的操作步骤以 **RUNBOOK.md** 为准。
+> 关键结论变化：`product` 分区由"替换"改为"**保留原厂**"（理由见 RUNBOOK 2.5）。
+
 ---
 
 ## 0. 一句话结论
@@ -50,7 +53,7 @@ LP metadata v10.2。**实测 extent 单位是 512 字节**（geometry 里写的 
 | `system_a` | `0x05f00000` | 1.033 GiB | **替换** |
 | `system_dlkm_a` | `0x48100000` | 7.2 MiB | **保留** |
 | `system_ext_a` | `0x48900000` | 0.825 GiB | **替换** |
-| `product_a` | `0x7d600000` | 3.926 GiB | **替换** |
+| `product_a` | `0x7d600000` | 3.926 GiB | **保留（原厂）** |
 | `vendor_a` | `0x178a00000` | 2.694 GiB | **保留** |
 | `vendor_dlkm_a` | `0x225200000` | 31.3 MiB | **保留** |
 
