@@ -157,8 +157,8 @@ git config --global url.https://mirrors.tuna.tsinghua.edu.cn/git/AOSP/.insteadof
 ### 阶段 3：出包
 
 ```bash
-./build.sh
-# 产物：out/target/product/NX737J/{system,system_ext,product}.img
+bash scripts/03-build.sh
+# 产物：out/target/product/NX737J/{system,system_ext}.img（product 保留原厂，不编）
 ```
 
 **关键：不要 `m bacon`，不要编 recovery/boot/vendor。** 这就是"别人能一下子出大量包"的原因——soong/ninja 仍会分析整棵树，但只编译链接三个系统侧镜像。首次编译后，改 device tree 重编是分钟级。
@@ -173,20 +173,22 @@ git config --global url.https://mirrors.tuna.tsinghua.edu.cn/git/AOSP/.insteadof
 > **但恢复很简单**：E 盘那个移植包就是完整恢复点——全套固件 + super + EDL 工具 + 一键脚本。
 > 刷挂了重跑 `一键刷机.bat` 就回到现在的状态，**不需要额外备份 super.img**。
 >
-> 实操上仍建议第一次只刷 `system_a` / `system_ext_a` / `product_a` 三个分区，
+> 实操上仍建议第一次只刷 `system_a` / `system_ext_a` **两个**分区
+> （product 保留原厂，见 RUNBOOK 2.5），
 > 别动 boot 链和固件，把恢复面缩到最小。
 
 见 `scripts/assemble-super.sh`。两个选项：
 
-**选项 A（推荐）—— 原地覆盖三个逻辑分区**
+**选项 A（推荐）—— 原地覆盖两个逻辑分区**
 
-用移植包已有的 EDL 流程，只写 `system_a` / `system_ext_a` / `product_a` 三个分区，其余（vendor/odm/*_dlkm/boot/init_boot/vendor_boot/dtbo/modem/dsp/tz/abl/xbl）**一个字节都不动**。
+用移植包已有的 EDL 流程，只写 `system_a` / `system_ext_a` 两个分区，其余（product/vendor/odm/*_dlkm/boot/init_boot/vendor_boot/dtbo/modem/dsp/tz/abl/xbl）**一个字节都不动**。
 
 ```bash
 python3 scripts/dump-lp-metadata.py super.img   # 拿真实偏移
 ```
 
-注意：AOSP 编出来的 `system.img` 通常 1.5~2.5 GB，**可能超过现有 1.033 GiB 的槽位**。超了就走选项 B。
+注意：AOSP 编出来的 `system.img`（64 位 only + 最小 dexpreopt）约 0.9~1.2 GB，
+**可能贴边或略超 1.033 GiB 槽位**。超了就走选项 B（assemble-super.sh 会自动算新 group）。
 
 **选项 B —— lpmake 重组 super**
 
