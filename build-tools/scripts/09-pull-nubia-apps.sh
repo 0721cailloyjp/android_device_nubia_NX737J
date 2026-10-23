@@ -3,7 +3,7 @@
 # 09-pull-nubia-apps.sh — 从你自己的手机里把努比亚系统 App 拉出来（在**本地 PC**上跑）
 #
 # 为什么用手机而不是 super.img：
-#   手机 /system 里现成就有这些 App，7 个 APK 一共几十 MB，adb pull 几秒钟。
+#   手机 /system 里现成就有这些 App，6 个 App + 3 个 jar 一共约 62 MB，adb pull 几秒钟。
 #   而 super.img 有 16 GB，传到云服务器再解包要很久。
 #
 # 前提：手机已 root 或至少能 adb 读 /system（移植包的 /system 可读）
@@ -69,10 +69,9 @@ say "设备：${RDEV}  /  ${MODEL}  /  ${BRAND}  /  Android ${REL}"
 
 # 设备提示（**不阻断**）
 #
-# 移植包会把源 ROM 的 ro.product.* 身份属性原样带过来（改了会破坏 DRM / attestation）：
-#   本机的 Z70S（物理 NX737J）跑澎湃4 移植包时，实测读到的是
-#   ro.product.device = haotian / model = 2410DPN6CC / brand = Xiaomi —— 这是 MIX 7 的身份。
-# 所以「brand 不是 nubia」不代表连错了机器，只提示一句，继续往下走。
+# 设备标识名是移植包作者**刻意**设成小米 15 Pro 的（ro.product.device=haotian /
+# model=2410DPN6CC / brand=Xiaomi），硬件是 Z70S。所以「brand 不是 nubia」不代表
+# 连错了机器，只提示一句，继续往下走。
 if ! case "${BRAND}${RDEV}${MODEL}" in *nubia*|*Nubia*|*ZTE*|*zte*|*NX737*|*NX789*) true;; *) false;; esac; then
     warn "这台的身份属性不是努比亚（brand=${BRAND} device=${RDEV} model=${MODEL}）"
     warn "移植包保留源 ROM 身份时会出现这种情况，属正常。继续查找。"
@@ -125,7 +124,7 @@ declare -a WANT=(
 #     灯效    /sys/class/leds/aw22xxx_led/cfg, effect
 #     SAR     /sys/class/leds/sar0/mode_operation, sar1
 #     CPU     /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq
-#     伪装    persist.cc.device.name   ← 设备名改成 mix7 / 小米15Pro 就是它管的
+#     设备名  persist.cc.device.name   ← 设置里的设备显示名（用户改的 mix7）
 #   只申请普通权限（INTERNET/存储/VIBRATE/ACCESS_WIFI_STATE），没有 priv-app 特权权限，
 #   放 /system/app 零风险。
 #   ⚠️ 它写 sysfs 要 root。刷完我们的包后如果没装 KernelSU 管理器并授权，
