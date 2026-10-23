@@ -6,8 +6,8 @@
 #
 # 已实测的 LP 布局（extent 单位 512 字节，不是 geometry 里写的 4096）：
 #   Slot A: odm / system / system_dlkm / system_ext / product / vendor / vendor_dlkm
-#   保留：vendor, vendor_dlkm, odm, system_dlkm
-#   替换：system, system_ext, product
+#   保留：vendor, vendor_dlkm, odm, system_dlkm, product（product 保留原厂，见 RUNBOOK 2.5）
+#   替换：system, system_ext
 #
 # 用法：
 #   ./extract-vendor.sh /path/to/super.img /path/to/outdir
@@ -65,21 +65,20 @@ cat <<'EOF'
 ────────────────────────────────────────────────────────────
 接下来怎么用这些文件
 
-原样保留（不要覆盖，这些是硬件层）：
+原样保留（不要覆盖，这些是硬件层 + 原厂 product）：
     vendor_a.img        -> vendor_a
     vendor_dlkm_a.img   -> vendor_dlkm_a
     odm_a.img           -> odm_a
     system_dlkm_a.img   -> system_dlkm_a
+    product_a.img       -> product_a（保留原厂）
 
 用自己编的替换：
     <out>/system.img      -> system_a
     <out>/system_ext.img  -> system_ext_a
-    <out>/product.img     -> product_a
 
 刷写前务必确认槽位大小：
     system_a      上限 1,109,176,320 B (1.033 GiB)
     system_ext_a  上限   885,358,592 B (0.825 GiB)
-    product_a     上限 4,215,025,664 B (3.926 GiB)
 超了就走 scripts/assemble-super.sh 的 lpmake 路线。
 ────────────────────────────────────────────────────────────
 EOF
