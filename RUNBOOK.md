@@ -243,7 +243,11 @@ ro.control_privapp_permissions=log
 2. **运行时无感**：开机后 `disable-miui.sh` 批量 `pm disable-user` 52 个 MIUI App
    （`init.nx737j.rc` 在 boot_completed 后触发），让它们不崩、桌面不显示、广播不触发。
 
-可选进阶：`scripts/11-strip-product.sh` 从 product.img 物理删除这 52 个 App（实验性，需 erofs-utils）。
+3. **可选进阶（物理删除）**：`scripts/11-strip-product.sh` 把 52 个 App 从 product.img 里
+   物理删掉，文件都不存在。脚本带 **xattr 自检**——EROFS 重打包只有在 SELinux context
+   能保住时才继续，保不住就自动放弃（退出码 2），回退到上面的开机禁用方案。
+   所以「能去掉就自动去掉，不能去掉就自动禁用」。产物是精简 product.img，要手动走
+   lpmake 重组塞回 super（脚本结尾会打印指引）。
 
 桌面不受影响：`com.miui.home` 装在 **/data/app**（用户安装的），清 data 后自然消失，
 开机后是 AOSP 的 Launcher3 接管。
