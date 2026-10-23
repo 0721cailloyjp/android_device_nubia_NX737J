@@ -184,7 +184,10 @@ endif
 # halts with "Your device is corrupt".
 BOARD_AVB_ENABLE := true
 BOARD_AVB_MAKE_VBMETA_IMAGE_ARGS += --flags 3
-BOARD_AVB_VBMETA_SYSTEM := system system_ext product
+# 只含我们实际编译的分区。product 保留原厂（不编），写进来一旦误触发
+# vbmeta_system 构建会因缺 product.img 失败。
+# （我们实际也不用构建 vbmeta_system —— 刷机时 patch 原厂的，见 RECOVERY.md）
+BOARD_AVB_VBMETA_SYSTEM := system system_ext
 BOARD_AVB_VBMETA_SYSTEM_KEY_PATH := external/avb/test/data/testkey_rsa2048.pem
 BOARD_AVB_VBMETA_SYSTEM_ALGORITHM := SHA256_RSA2048
 BOARD_AVB_VBMETA_SYSTEM_ROLLBACK_INDEX := $(PLATFORM_SECURITY_PATCH_TIMESTAMP)
