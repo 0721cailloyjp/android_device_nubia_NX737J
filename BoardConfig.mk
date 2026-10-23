@@ -37,7 +37,10 @@ TARGET_CPU_VARIANT_RUNTIME := oryon
 # ── Board ───────────────────────────────────────────────────────────────────
 BOARD_VENDOR := nubia
 TARGET_BOARD_PLATFORM := sun
-TARGET_BOOTLOADER_BOARD_NAME := sun
+# ⚠️ 实测（2026-10-23）：stock vendor 的 ro.hardware = qcom，而 ro.board.platform = sun。
+# ro.hardware 来自 TARGET_BOOTLOADER_BOARD_NAME，决定 libhardware 找 vendor HAL 的
+# 命名（/vendor/lib64/hw/<module>.qcom.so）。设成 sun 会找错名字，所以这里必须 qcom。
+TARGET_BOOTLOADER_BOARD_NAME := qcom
 
 # ── A/B + Virtual A/B ───────────────────────────────────────────────────────
 # LP metadata on this device declares groups qti_dynamic_partitions_a/_b,
