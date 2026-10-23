@@ -140,7 +140,7 @@ def build_file_map(root: str, device_dir: str):
                 rel = os.path.relpath(pp, root).replace("\\", "/")
                 add(pp, rel)
 
-    for doc in ("README.md", "RUNBOOK.md", "ANALYSIS.md"):
+    for doc in ("README.md", "RUNBOOK.md", "ANALYSIS.md", "RELEASE-NOTES.md"):
         p = os.path.join(root, doc)
         if os.path.isfile(p):
             add(p, doc)
