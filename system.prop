@@ -37,3 +37,9 @@ ro.board.first_api_level=202404
 # 直接抛异常 → 开不了机。userdebug 默认就是 log，这行主要给后面 user 包兜底。
 # 确认能开机、权限白名单处理干净之后可以删。
 ro.control_privapp_permissions=log
+
+# 5G 默认网络模式：双卡都 NR SA（独立组网）。
+# 实测移植包 ro.telephony.default_network = 32,32（双 5G SA），vendor 同一个、
+# RIL/modem 支持 SA，所以照抄。不设的话 AOSP 默认回落到 LTE，5G 得手动切。
+# 值含义：32 = NETWORK_MODE_NR_SA，双卡所以 32,32。
+ro.telephony.default_network=32,32
