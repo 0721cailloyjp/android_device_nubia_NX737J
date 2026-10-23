@@ -72,8 +72,11 @@ log "repo sync -c -j${JOBS}（TUNA 限并发，开高会 503）"
 log "预计 45~90 分钟。日志 ${DATA}/sync.log"
 
 set +e
-repo sync -c -j"${JOBS}" --force-sync --no-tags --no-clone-bundle \
-          --optimized-fetch --prune 2>&1 | tee "${DATA}/sync.log"
+# 注意：**不能加 --no-tags** —— PixelOS manifest 里 external/tinyxml 的 revision
+# 是 tag（refs/tags/android-11.0.0_r46），--no-tags 可能拉不到它导致 sync 失败。
+# 也不加 --optimized-fetch（和 --depth=1 浅克隆兼容性存疑）。
+# 只保留无害的 --force-sync（覆盖本地）和 --no-clone-bundle（不走 bundle，更稳）。
+repo sync -c -j"${JOBS}" --force-sync --no-clone-bundle --prune 2>&1 | tee "${DATA}/sync.log"
 RC=${PIPESTATUS[0]}
 set -e
 
