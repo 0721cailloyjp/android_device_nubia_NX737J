@@ -43,9 +43,10 @@ PRODUCT_SHIPPING_API_LEVEL := 35
 #    的重复属性（AOSP 对重复属性是会报错的，那种错很难一眼看出来）。
 
 # ── Boot control / update engine (A/B device) ──────────────────────────────
-PRODUCT_PACKAGES += \
-    android.hardware.boot-service.default_recovery
-
+# ⚠️ 不加 android.hardware.boot-service.default_recovery —— 实测 Z70S 的 vendor
+# 已经提供 android.hardware.boot.IBootControl/default（boot-service.qti.xml），
+# system 侧再加会两边抢同一个 instance，boot control 状态不确定。
+# （NX789J 加是因为它的 vendor 没这个 HAL；Z70S 有，情况不同。）
 PRODUCT_PACKAGES += \
     update_engine \
     update_engine_sideload \
