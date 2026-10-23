@@ -11,6 +11,25 @@
 #
 set -uo pipefail
 
+# Git Bash 会把 /system/... 这类参数改写成 Windows 路径（09 脚本踩过坑），
+# 这里统一关掉；本脚本没有本地路径参数，关掉无害。
+export MSYS_NO_PATHCONV=1
+export MSYS2_ARG_CONV_EXCL='*'
+
+# 自动找 adb（和 09-pull-nubia-apps.sh 同一套逻辑）
+if ! command -v adb >/dev/null 2>&1; then
+    for c in "/c/Qntool/adb.exe" \
+             "$LOCALAPPDATA/Android/Sdk/platform-tools/adb.exe" \
+             "/c/platform-tools/adb.exe" "/d/platform-tools/adb.exe" \
+             "/e/NX737J_HyperOS_4.0.0.10_A17_10.12/FlashTool/adb.exe"; do
+        if [[ -x "$c" ]]; then
+            export PATH="$(dirname "$c"):$PATH"
+            echo "使用 adb: $c"
+            break
+        fi
+    done
+fi
+
 OUT="bootlog-$(date +%Y%m%d-%H%M%S)"
 mkdir -p "${OUT}"
 
