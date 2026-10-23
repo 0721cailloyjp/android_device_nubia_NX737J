@@ -65,7 +65,9 @@ BOARD_INIT_BOOT_HEADER_VERSION := 4
 BOARD_MKBOOTIMG_INIT_ARGS += --header_version $(BOARD_INIT_BOOT_HEADER_VERSION)
 BOARD_RAMDISK_USE_LZ4 := true
 BOARD_USES_GENERIC_KERNEL_IMAGE := true
-TARGET_HAS_GENERIC_KERNEL_IMAGE_HEADERS := true
+# （原 NX789J 还有 TARGET_HAS_GENERIC_KERNEL_IMAGE_HEADERS := true，已删：全 GitHub 只有
+#  NX789J/NX809J 用这个变量，AOSP build 里根本没有，是死变量。GKI 已由上面的
+#  BOARD_USES_GENERIC_KERNEL_IMAGE 声明。）
 
 # ── Kernel: prebuilt ────────────────────────────────────────────────────────
 # 6.6.143-android15-8-zte-1006-4k, extracted from the port package's boot.img
