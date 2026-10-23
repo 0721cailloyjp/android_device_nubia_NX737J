@@ -89,45 +89,83 @@ for p in "${PARTS[@]}"; do
 done
 
 if (( OVER )); then
-    GRP="${LP_GRP_qti_dynamic_partitions_a:-${LP_GRP_qti_dynamic_partitions:-0}}"
-    USED=0
-    for _v in $(compgen -v | grep -E '^LP_.*_SIZE$'); do USED=$(( USED + ${!_v} )); done
+    # 算新的 group 大小 = 所有 slot A 分区的新大小之和。
+    # 关键 bug 修复：之前直接沿用 stock group max（8.61 GiB），
+    # 但 system 变大后分区总和会超过它 → lpmake 报错。必须用 super 的空闲空间扩 group。
+    NEW_GRP=0
+    # 被替换的分区：用实际 img 大小，4096 对齐
+    for p in "${PARTS[@]}"; do
+        SZ=$(stat -c%s "${BUILT_DIR}/${p}.img")
+        SZ=$(( (SZ + 4095) / 4096 * 4096 ))
+        NEW_GRP=$(( NEW_GRP + SZ ))
+    done
+    # 保留的分区：用 stock size（product 仅在 KEEP_PRODUCT=1 时保留，否则已在 PARTS 里）
+    KEEP_LIST=( vendor vendor_dlkm odm system_dlkm )
+    [[ "${KEEP_PRODUCT}" == "1" ]] && KEEP_LIST+=( product )
+    for p in "${KEEP_LIST[@]}"; do
+        SZ=$(lp "$p" size 2>/dev/null) || continue
+        NEW_GRP=$(( NEW_GRP + SZ ))
+    done
+    NEW_GRP=$(( (NEW_GRP + 1048575) / 1048576 * 1048576 ))   # 向上取整 1 MiB
+    MAX_GRP=$(( IMG_SIZE - 8388608 ))                          # 预留 8 MiB 给 metadata
+    if (( NEW_GRP > MAX_GRP )); then
+        die "扩大 group 也放不下（需 $((NEW_GRP/1048576)) MiB > 上限 $((MAX_GRP/1048576)) MiB）——只能砍内容"
+    fi
+
+    # product 的 lpmake 行随 KEEP_PRODUCT 变化
+    if [[ "${KEEP_PRODUCT}" == "1" ]]; then
+        PRODUCT_IMG="keep/product_a.img"
+        PRODUCT_SIZE="$(lp product size)"
+    else
+        PRODUCT_IMG="${BUILT_DIR}/product.img"
+        PRODUCT_SIZE="$(( ($(stat -c%s "${BUILT_DIR}/product.img") + 4095) / 4096 * 4096 ))"
+    fi
+
     cat <<EOF
 
 ════════════════════════════════════════════════════════════════════
- 镜像放不下原槽位。两条路：
+ 镜像放不下原槽位。走 lpmake 重组（group 从 stock 的 $(( ${LP_GRP_qti_dynamic_partitions_a:-0} / 1048576 )) MiB 扩到 $((NEW_GRP/1048576)) MiB）。
 
- (a) lpmake 重组（推荐，空闲空间足够）
-     免费空间 ≈ $(( (IMG_SIZE - USED) / 1024 / 1024 / 1024 )) GiB
-     用 scripts/extract-vendor.sh 先拆出 vendor 等四个保留分区，然后：
+ ① 先拆出保留分区：
+    mkdir -p keep
+EOF
+    for p in "${KEEP_LIST[@]}"; do
+        S=$(lp "$p" start 2>/dev/null) || continue
+        Z=$(lp "$p" size 2>/dev/null) || continue
+        echo "    dd if=${ORIG_SUPER} of=keep/${p}_a.img bs=512 skip=$(( S / 512 )) count=$(( Z / 512 )) status=none"
+    done
 
-     lpmake \\
-       --metadata-size 65536 --metadata-slots 3 \\
-       --device super:${IMG_SIZE}:4096 \\
-       --group qti_dynamic_partitions_a:${GRP} \\
-       --group qti_dynamic_partitions_b:${GRP} \\
-       --partition system_a:readonly:<新大小>:qti_dynamic_partitions_a \\
-          --image system=${BUILT_DIR}/system.img \\
-       --partition system_ext_a:readonly:<新大小>:qti_dynamic_partitions_a \\
-          --image system_ext=${BUILT_DIR}/system_ext.img \\
-       --partition product_a:readonly:<新大小>:qti_dynamic_partitions_a \\
-          --image product=${BUILT_DIR}/product.img \\
-       --partition vendor_a:readonly:$(lp vendor size):qti_dynamic_partitions_a \\
-          --image vendor=<拆出来的>/vendor_a.img \\
-       --partition vendor_dlkm_a:readonly:$(lp vendor_dlkm size):qti_dynamic_partitions_a \\
-          --image vendor_dlkm=<拆出来的>/vendor_dlkm_a.img \\
-       --partition odm_a:readonly:$(lp odm size):qti_dynamic_partitions_a \\
-          --image odm=<拆出来的>/odm_a.img \\
-       --partition system_dlkm_a:readonly:$(lp system_dlkm size):qti_dynamic_partitions_a \\
-          --image system_dlkm=<拆出来的>/system_dlkm_a.img \\
-       --sparse --output ./super.img
+    cat <<EOF
 
- (b) 砍内容（去掉 GApps、去掉不用的 product 包）直到放得下
+ ② lpmake 重建（注意 group 已按新大小计算）：
+    lpmake \\
+      --metadata-size 65536 --metadata-slots 3 \\
+      --device super:${IMG_SIZE}:4096 \\
+      --group qti_dynamic_partitions_a:${NEW_GRP} \\
+      --group qti_dynamic_partitions_b:${NEW_GRP} \\
+      --partition system_a:readonly:$(( ($(stat -c%s "${BUILT_DIR}/system.img") + 4095) / 4096 * 4096 )):qti_dynamic_partitions_a \\
+         --image system=${BUILT_DIR}/system.img \\
+      --partition system_ext_a:readonly:$(( ($(stat -c%s "${BUILT_DIR}/system_ext.img") + 4095) / 4096 * 4096 )):qti_dynamic_partitions_a \\
+         --image system_ext=${BUILT_DIR}/system_ext.img \\
+      --partition product_a:readonly:${PRODUCT_SIZE}:qti_dynamic_partitions_a \\
+         --image product=${PRODUCT_IMG} \\
+      --partition vendor_a:readonly:$(lp vendor size):qti_dynamic_partitions_a \\
+         --image vendor=keep/vendor_a.img \\
+      --partition vendor_dlkm_a:readonly:$(lp vendor_dlkm size):qti_dynamic_partitions_a \\
+         --image vendor_dlkm=keep/vendor_dlkm_a.img \\
+      --partition odm_a:readonly:$(lp odm size):qti_dynamic_partitions_a \\
+         --image odm=keep/odm_a.img \\
+      --partition system_dlkm_a:readonly:$(lp system_dlkm size):qti_dynamic_partitions_a \\
+         --image system_dlkm=keep/system_dlkm_a.img \\
+      --sparse --output ./super.img
+
+ ③ 验证：
+    lpdump ./super.img | grep -A2 system
 
  别强行刷不匹配的 super。extent 表错了 = 该槽位起不来。
 ════════════════════════════════════════════════════════════════════
 EOF
-    die "尺寸超限，未生成 ${OUT}"
+    die "尺寸超限，未生成 ${OUT}（按上面 lpmake 命令重组）"
 fi
 
 # ── DRY RUN 出口 ────────────────────────────────────────────────────────────
