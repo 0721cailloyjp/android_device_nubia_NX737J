@@ -174,8 +174,9 @@ else
   $(warning [NX737J] 没找到 device/qcom/sepolicy_vndr{,/sm8750}/SEPolicy.mk，跳过 qcom sepolicy)
 endif
 
-SYSTEM_EXT_PRIVATE_SEPOLICY_DIRS := \
-    $(filter-out device/lineage/sepolicy/qcom/dynamic,$(SYSTEM_EXT_PRIVATE_SEPOLICY_DIRS))
+# （注：原来这里有一行 filter-out device/lineage/sepolicy/qcom/dynamic —— 已删。
+#  该路径在当前 LineageOS 里不存在（用的是 common/dynamic），filter 是 no-op 死代码，
+#  NX789J 抄来的。删掉不影响任何结果。）
 
 # ── Verified Boot ───────────────────────────────────────────────────────────
 # --flags 3 = disable verification + disable verity. The flash kit also ships
