@@ -72,10 +72,10 @@ vendor.zte.nook.modem-V2-ndk.so / vendor.zte.subsys-V1-ndk.so
 
 | | 是什么 | 现在从哪来 | 刷完我们的包之后 |
 |---|---|---|---|
-| **型号属性** | `ro.product.model=2410DPN6CC`、`ro.product.device=haotian`、`ro.product.brand=Xiaomi` | **移植包自带的**（system/product 就是小米 15 Pro 的 HyperOS） | **变成 `nubia Z70S Ultra` / `nubia`** —— 由我们的 `lineage_NX737J.mk` 定义 |
+| **型号属性** | `ro.product.model=2410DPN6CC`、`ro.product.device=haotian`、`ro.product.brand=Xiaomi` | **移植包作者刻意改的**（system/product 底子是小米 15 Pro 的 HyperOS） | **变成 `nubia Z70S Ultra` / `nubia`** —— 由我们的 `lineage_NX737J.mk` 定义 |
 | **设备显示名** | 设置里那个"设备名称"，用户可见；应用小尾巴也读它 | **用户自己在设置里改成 `mix7`**，存在 `persist.cc.device.name` | **清 data 后回到默认**，在设置里重改一次即可 |
 
-所以：**"应用小尾巴显示小米15Pro" 不是伪装，是移植包 build.prop 里的型号本来就是那个。**
+所以：**"应用小尾巴显示小米15Pro" 不是伪装，是移植包作者刻意把型号设成了小米 15 Pro。**
 刷完之后小尾巴会自然变成 **`nubia Z70S Ultra`**（`ro.product.model` 直接设成了市场名，
 `ro.product.marketname` 也一起设了），不需要任何额外处理。
 
@@ -100,6 +100,11 @@ git init && git add -A && git commit -m "NX737J bootstrap device tree"
 ---
 
 ## 1. 阶段 A：低配拉源码
+
+> ⚠️ **单台变配，不要租 2 台。** 源码 sync 完有 150~200 GB，
+> 租两台要么 scp 150GB、要么编译机重新 sync（都几小时），
+> 而单台变配只是"关机换 CPU/内存"（几分钟），源码和磁盘原地不动。
+> 整个流程就是：8核16G sync → 关机升 16核32G 编译 → 关机降回 8核16G 下载销毁。
 
 | 项 | 值 |
 |---|---|
