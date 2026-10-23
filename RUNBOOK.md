@@ -338,18 +338,19 @@ dex **完全自包含**（1561 个类，零 `miui`/`xiaomi`/`zte` 外部依赖�
 除 transferclient 外没有任何 zte 的 jar）。也就是说这几个 App 今天是同样的残缺状态，
 搬过去不会产生新的退化——只是"维持现状"，不是"变差"。
 
-**两条路拿 APK，任选其一：**
+**拿 APK 的方式（唯一，已实测通过）：**
 
 ```bash
-# 【快】直接从手机拉（约 107 MB，本地跑，已实测通过）
+# 直接从手机拉（约 62 MB，本地跑，2026-10-22 实测通过）
 bash scripts/09-pull-nubia-apps.sh --list   # 先看找到什么
 bash scripts/09-pull-nubia-apps.sh          # 再拉
-
-# 【慢】从 super.img 解包（16 GB，服务器上跑）
-bash scripts/08-extract-nubia-apps.sh /path/to/super.img
 ```
 
-两个脚本都会产出：
+> 之前还有个 08-extract-nubia-apps.sh（从 super.img 解包），已删：
+> 它的 WANT 清单过时（还是旧的 7 个）、不处理 jar、dest 路径写错，
+> 且 09 从手机拉更快更准，完全替代了它。
+
+脚本会产出：
 - `device/nubia/NX737J/prebuilts/nubia-apps/`（APK + jar + privapp-permissions XML）
 - `device/nubia/NX737J/nubia-apps.mk`（PRODUCT_COPY_FILES 规则）
 
