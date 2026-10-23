@@ -71,6 +71,17 @@ PRODUCT_PACKAGES += \
     wpa_supplicant \
     wpa_supplicant.conf
 
+# ── NFC ─────────────────────────────────────────────────────────────────────
+# 芯片是意法半导体 ST54L（实测 ro.vendor.feature.board_uses_nfc = ST54L）。
+# vendor 已经提供 android.hardware.nfc AIDL HAL + 全部 feature XML（实测在跑），
+# 但 system 侧缺 NFC 应用 —— 之前剔除了小米的 Nfc_st（com.android.nfc，依赖 miui 类），
+# 得用 AOSP 标准 NfcNci 顶上，否则 NFC 开关整个消失。
+# NfcNci 用标准 NCI 协议配 ST HAL，基础读写 + HCE 能工作；eSE 刷卡靠已回注的
+# com.st.android.nfc_extensions 库（见 nubia-apps.mk）。
+PRODUCT_PACKAGES += \
+    NfcNci \
+    com.android.nfc_extras
+
 # ── Overlays ────────────────────────────────────────────────────────────────
 # DISABLED for the bootstrap build. An overlay that names a resource which
 # does not exist (or uses the wrong type) fails the build in aapt2 with
