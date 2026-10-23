@@ -89,8 +89,21 @@ log "镜像全部通过验证"
 # ── 打包 ────────────────────────────────────────────────────────────────────
 log "打包到 ${PKG}.tar.zst"
 mkdir -p "${DATA}"
+TAR_LIST=( "${IMGS[@]}" )
+
+# 带上救砖指南（放在设备树根，repo sync 会拉到）
+# 刷挂了怎么恢复全靠它，别漏。
+REC="${TREE}/device/nubia/NX737J/RECOVERY.md"
+if [[ -f "${REC}" ]]; then
+    cp -f "${REC}" "${OUT}/RECOVERY.md"
+    TAR_LIST+=( RECOVERY.md )
+    log "已带上救砖指南 RECOVERY.md"
+else
+    echo "  ! 没找到 ${REC}，产物里没有救砖指南（刷挂了会麻烦）"
+fi
+
 tar -I 'zstd -3 -T0' -cf "${PKG}.tar.zst" \
-    -C "${OUT}" "${IMGS[@]}"
+    -C "${OUT}" "${TAR_LIST[@]}"
 
 log "生成 SHA256"
 sha256sum "${PKG}.tar.zst" > "${PKG}.tar.zst.sha256"
