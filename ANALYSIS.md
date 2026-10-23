@@ -282,7 +282,7 @@ vendor 的 compatibility_matrix（type=device）只要求 framework 提供 4 个
 4. **AVB**：`BOARD_AVB_ENABLE=true` + 不编 vbmeta_system，刷 stock vbmeta patch flags=3，这条路径有没有漏洞？
 5. **dexpreopt**：`WITH_DEXPREOPT_BOOT_IMG_AND_SYSTEM_SERVER_ONLY` 在 core_64_bit_only 下，首启 boot.oat 是否完整？
 6. **EROFS**：Ubuntu 24.04 的 mkfs.erofs 1.7 是否满足 AOSP 17 的 build_image 要求？
-7. **product 保留**：保留 HyperOS 的 product，其中的 MIUI priv-app 在 AOSP 下会怎样？（已用 ro.control_privapp_permissions=log 兜底，但欢迎复核）
+7. **product 保留**：保留 HyperOS 的 product，其中的 MIUI priv-app 在 AOSP 下会怎样？处置：`ro.control_privapp_permissions=log`（开机不因特权权限阻塞）+ 开机后 `disable-miui.sh` 批量 `pm disable-user` 52 个 MIUI App（不崩、不显示、不触发）+ 可选 `11-strip-product.sh` 物理删除。（欢迎复核这个组合是否有漏洞）
 8. **还有什么我们完全没考虑到的风险？**
 
 ---

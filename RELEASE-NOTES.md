@@ -44,11 +44,22 @@
 | 问题 | 说明 | 影响 |
 |---|---|---|
 | **32 位 App 不兼容** | 骁龙 8 Elite 无 AArch32 执行单元，HyperOS 靠闭源 Tango 转译器跑 32 位，AOSP 无法复刻 | 纯 32 位的老 App 装不上/闪退，绝大多数 App 早就有 64 位版 |
-| **MIUI 残留 App 会崩** | 保留了原厂 product，里面的小米 App 在 AOSP 下缺 miui 框架类 | 只影响那些 App 本身，不影响系统 |
-| **QTI 性能服务可能失效** | system 侧 perfservice 依赖被换掉的 system_ext | 性能调度用 AOSP 默认，无感 |
 | **ZTE 钱包部分功能** | 缺 `com.zte.aimodel.*` 等类（原厂移植包也缺） | AI 语音类功能不可用，刷卡/门禁正常 |
 
-> 以上都是"移植包的现状"延续，**不是本包引入的退化**。
+> 以上是**无法处理**的项（Tango 闭源、AI 模型类移植包本身就没有），属于"移植包现状"延续，不是本包引入的退化。
+
+## 已处理的残留（开机自动无感化）
+
+保留原厂 product 会带进一堆小米/高通的东西，但它们依赖的框架类在 system_ext（已被 AOSP 替换），
+点开会崩。本包**开机后自动禁用**这些残留，让它们不崩、桌面不显示、广播不触发：
+
+| 残留 | 处理 | 结果 |
+|---|---|---|
+| **MIUI / 小米 App（52 个）** | 开机后 `pm disable-user` 批量禁用（`disable-miui.sh`） | 彻底无感：不运行、不显示、不崩。可选进阶：`11-strip-product.sh` 从 product.img 物理删除 |
+| **QTI 性能服务（perfservice）** | 二进制+依赖库都在 system/system_ext，随 AOSP 替换自然消失 | 性能调度用 AOSP PowerHAL 默认，vendor perf HAL 自包含、idle 无害，无感 |
+
+> 保留了 QTI 电话栈（ConferenceDialer / remotesim / uimgba 等）、InCallUI、IFAA/微信指纹支付、
+> Google 组件——这些是 VoLTE/eSIM/指纹支付的地基，**不在禁用之列**。
 
 ---
 

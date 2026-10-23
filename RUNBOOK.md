@@ -230,14 +230,20 @@ JOBS=8 bash scripts/03-build.sh
 
 **顺带省钱**：product 有 4.2 GB，不编 = 不传 = 不下，对 ¥25 预算是实打实的节省。
 
-### 保留它的代价（已知、可接受）
+### 保留它的代价（已知、已处置）
 
-product 里那堆 MIUI App 在 AOSP 框架下会崩（缺 `miui.*` 类）。
-它们的特权权限请求靠 `system.prop` 里这行降级，**不会阻塞开机**：
+product 里那堆 MIUI App 在 AOSP 框架下会崩（缺 `miui.*` 类）。两道处置：
+
+1. **开机不阻塞**：特权权限请求靠 `system.prop` 里这行降级：
 
 ```properties
 ro.control_privapp_permissions=log
 ```
+
+2. **运行时无感**：开机后 `disable-miui.sh` 批量 `pm disable-user` 52 个 MIUI App
+   （`init.nx737j.rc` 在 boot_completed 后触发），让它们不崩、桌面不显示、广播不触发。
+
+可选进阶：`scripts/11-strip-product.sh` 从 product.img 物理删除这 52 个 App（实验性，需 erofs-utils）。
 
 桌面不受影响：`com.miui.home` 装在 **/data/app**（用户安装的），清 data 后自然消失，
 开机后是 AOSP 的 Launcher3 接管。
